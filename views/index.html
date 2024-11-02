@@ -9,18 +9,24 @@
         body {
             display: flex;
             flex-direction: column;
-            align-items: center; /* Căn giữa theo chiều ngang */
-            justify-content: center; /* Căn giữa theo chiều dọc */
-            height: 100vh; /* Chiều cao của màn hình */
-            margin: 0; /* Loại bỏ margin của body */
-            background-color: #eaeaea; /* Màu nền cho dễ nhìn */
+            align-items: center;
+            /* Căn giữa theo chiều ngang */
+            justify-content: center;
+            /* Căn giữa theo chiều dọc */
+            height: 100vh;
+            /* Chiều cao của màn hình */
+            margin: 0;
+            /* Loại bỏ margin của body */
+            background-color: #eaeaea;
+            /* Màu nền cho dễ nhìn */
         }
 
         #board {
             display: grid;
             grid-template-columns: repeat(15, 40px);
             grid-gap: 2px;
-            margin-top: 20px; /* Khoảng cách giữa tiêu đề và bàn cờ */
+            margin-top: 20px;
+            /* Khoảng cách giữa tiêu đề và bàn cờ */
         }
 
         .cell {
@@ -36,7 +42,8 @@
 
         #status {
             margin-bottom: 10px;
-            font-size: 20px; /* Tăng kích thước chữ cho dễ đọc */
+            font-size: 20px;
+            /* Tăng kích thước chữ cho dễ đọc */
         }
 
         #reset-confirmation {
@@ -52,8 +59,10 @@
         }
 
         button {
-            margin: 5px; /* Khoảng cách giữa các nút */
-            padding: 10px 20px; /* Padding cho nút */
+            margin: 5px;
+            /* Khoảng cách giữa các nút */
+            padding: 10px 20px;
+            /* Padding cho nút */
         }
     </style>
 </head>
@@ -81,6 +90,7 @@
         let currentTurn = 1; // Lượt đầu tiên là của Player 1
         let resetVotes = {};
         let otherPlayerId = null; // Biến lưu ID của người chơi khác
+        let bothPlayersAgreed = false; // Biến theo dõi trạng thái rétart
 
         const createBoard = () => {
             board.innerHTML = ''; // Xóa bàn cờ cũ
@@ -90,6 +100,7 @@
                     cell.classList.add('cell');
                     cell.dataset.row = i;
                     cell.dataset.col = j;
+                    cell.innerText = '';
                     board.appendChild(cell);
 
                     cell.addEventListener('click', () => {
@@ -139,33 +150,50 @@
 
         // Xử lý nút "Yes" để chơi lại
         document.getElementById('yes-play-again').addEventListener('click', () => {
-            console.log('Yes clicked'); 
-            socket.emit('reset-request'); // Gửi yêu cầu chơi lại
-        });
-
-        // Lắng nghe sự kiện xác nhận chơi lại từ máy chủ
-        socket.on('reset-confirmation', (playerId) => {
-            resetVotes[playerId] = true; // Đánh dấu người chơi đã đồng ý
-            console.log(`Player ${playerId} agreed to reset.`);
-            resetConfirmation.style.display = 'block'; // Hiện thông báo chơi lại
-
-            // Kiểm tra xem cả hai người chơi đã đồng ý hay chưa
+            console.log('Yes clicked');
+            resetVotes[playerNumber] = true;
             if (resetVotes[playerNumber] && resetVotes[otherPlayerId]) {
-                console.log('Both players agreed to reset. Sending reset-accepted.');
-                socket.emit('reset-accepted'); // Gửi yêu cầu chơi lại nếu cả hai đã đồng ý
+                bothPlayersAgreed = true;
+                socket.emit('reset-request', playerNumber);
+            } else {
+                socket.emit('reset-request', playerNumber);
             }
         });
 
+        // socket.on('reset-confirmation', (playerId) => {
+        //     resetVotes[playerId] = true; // Đánh dấu người chơi đã đồng ý
+        //     console.log(`Player ${playerId} agreed to reset. Current resetVotes: `, resetVotes);
+
+        //     // Kiểm tra nếu cả 2 ID người chơi đã đồng ý reset
+        //     if (Object.keys(resetVotes).length === 2) {
+        //         console.log('Both players agreed to reset. Sending reset-accepted.');
+        //         socket.emit('reset-accepted'); // Gửi reset-accepted khi cả hai đã đồng ý
+        //     }
+        // });
+
+        socket.on('reset-confirmation', (playerId) => {
+            resetVotes[playerId] = true;
+            console.log(`Player ${playerId} agreed to reset. Current resetVotes: `, resetVotes);
+
+            // Kiểm tra xem cả hai người chơi đã đồng ý hay chưa
+            if (Object.keys(resetVotes).length === 2) {
+                console.log('Both players agreed to reset. Sending reset-accepted.');
+                socket.emit('reset-accepted'); // Gửi reset-accepted khi cả hai đã đồng ý
+            }
+        });
+
+
         // Xử lý nút "No" để không chơi lại
         document.getElementById('no-play-again').addEventListener('click', () => {
-            console.log('No clicked'); 
+            console.log('No clicked');
             resetConfirmation.style.display = 'none'; // Ẩn thông báo
             resetVotes = {};
         });
 
         // Reset lại trạng thái khi trò chơi được khởi động lại
         socket.on('reset', () => {
-            resetVotes = {}; 
+            console.log('Received reset event from server.');
+            resetVotes = {};
             createBoard(); // Tạo bàn cờ mới
             gameStarted = true;
             currentTurn = 1; // Reset lại lượt đầu tiên là Player 1
