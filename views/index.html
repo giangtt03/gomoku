@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gomoku Realtime</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center; /* Căn giữa theo chiều ngang */
+            justify-content: center; /* Căn giữa theo chiều dọc */
+            height: 100vh; /* Chiều cao của màn hình */
+            margin: 0; /* Loại bỏ margin của body */
+            background-color: #eaeaea; /* Màu nền cho dễ nhìn */
+        }
+
+        #board {
+            display: grid;
+            grid-template-columns: repeat(15, 40px);
+            grid-gap: 2px;
+            margin-top: 20px; /* Khoảng cách giữa tiêu đề và bàn cờ */
+        }
+
+        .cell {
+            width: 40px;
+            height: 40px;
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        #status {
+            margin-bottom: 10px;
+            font-size: 20px; /* Tăng kích thước chữ cho dễ đọc */
+        }
+
+        #reset-confirmation {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            border: 2px solid black;
+            padding: 20px;
+            z-index: 1000;
+        }
+
+        button {
+            margin: 5px; /* Khoảng cách giữa các nút */
+            padding: 10px 20px; /* Padding cho nút */
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Gomoku Realtime</h1>
+    <div id="status">Waiting for another player...</div>
+    <div id="board"></div>
+
+    <div id="reset-confirmation">
+        <p id="winner-message"></p>
+        <button id="yes-play-again">Yes</button>
+        <button id="no-play-again">No</button>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const board = document.getElementById('board');
+        const statusDiv = document.getElementById('status');
+        const resetConfirmation = document.getElementById('reset-confirmation');
+        const winnerMessage = document.getElementById('winner-message');
+        let playerNumber = null;
+        let gameStarted = false;
+        let currentTurn = 1; // Lượt đầu tiên là của Player 1
+        let resetVotes = {};
+        let otherPlayerId = null; // Biến lưu ID của người chơi khác
+
+        const createBoard = () => {
+            board.innerHTML = ''; // Xóa bàn cờ cũ
+            for (let i = 0; i < 15; i++) {
+                for (let j = 0; j < 15; j++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell');
+                    cell.dataset.row = i;
+                    cell.dataset.col = j;
+                    board.appendChild(cell);
+
+                    cell.addEventListener('click', () => {
+                        if (!cell.innerText && playerNumber && gameStarted && currentTurn === playerNumber) {
+                            // Gửi thông tin nước đi
+                            socket.emit('move', {
+                                row: i,
+                                col: j,
+                                player: playerNumber
+                            });
+                        }
+                    });
+                }
+            }
+        };
+
+        socket.on('player-assigned', (number) => {
+            playerNumber = number;
+            statusDiv.innerText = `You are player ${playerNumber}. Waiting for another player...`;
+        });
+
+        socket.on('game-start', (otherPlayer) => {
+            gameStarted = true;
+            currentTurn = 1;
+            otherPlayerId = otherPlayer;
+            statusDiv.innerText = `Game started! You are player ${playerNumber}.`;
+        });
+
+        socket.on('move', (data) => {
+            const { row, col, player } = data;
+            const cell = board.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+            cell.innerText = player === 1 ? 'X' : 'O'; // Cập nhật ô với X hoặc O
+            currentTurn = player === 1 ? 2 : 1; // Cập nhật lượt chơi
+            statusDiv.innerText = `Player ${currentTurn === playerNumber ? 'you' : currentTurn}'s turn.`; // Cập nhật thông báo
+        });
+
+        socket.on('turn-changed', (newTurn) => {
+            currentTurn = newTurn; // Cập nhật lượt đi mới
+            statusDiv.innerText = `Player ${currentTurn === playerNumber ? 'you' : currentTurn}'s turn.`; // Cập nhật thông báo
+        });
+
+        socket.on('win', (player) => {
+            gameStarted = false;
+            winnerMessage.innerText = `Player ${player} wins! Do you want to play again?`;
+            resetConfirmation.style.display = 'block'; // Hiện thông báo chơi lại
+        });
+
+        // Xử lý nút "Yes" để chơi lại
+        document.getElementById('yes-play-again').addEventListener('click', () => {
+            console.log('Yes clicked'); 
+            socket.emit('reset-request'); // Gửi yêu cầu chơi lại
+        });
+
+        // Lắng nghe sự kiện xác nhận chơi lại từ máy chủ
+        socket.on('reset-confirmation', (playerId) => {
+            resetVotes[playerId] = true; // Đánh dấu người chơi đã đồng ý
+            console.log(`Player ${playerId} agreed to reset.`);
+            resetConfirmation.style.display = 'block'; // Hiện thông báo chơi lại
+
+            // Kiểm tra xem cả hai người chơi đã đồng ý hay chưa
+            if (resetVotes[playerNumber] && resetVotes[otherPlayerId]) {
+                console.log('Both players agreed to reset. Sending reset-accepted.');
+                socket.emit('reset-accepted'); // Gửi yêu cầu chơi lại nếu cả hai đã đồng ý
+            }
+        });
+
+        // Xử lý nút "No" để không chơi lại
+        document.getElementById('no-play-again').addEventListener('click', () => {
+            console.log('No clicked'); 
+            resetConfirmation.style.display = 'none'; // Ẩn thông báo
+            resetVotes = {};
+        });
+
+        // Reset lại trạng thái khi trò chơi được khởi động lại
+        socket.on('reset', () => {
+            resetVotes = {}; 
+            createBoard(); // Tạo bàn cờ mới
+            gameStarted = true;
+            currentTurn = 1; // Reset lại lượt đầu tiên là Player 1
+            statusDiv.innerText = `Game restarted. You are player ${playerNumber}.`;
+            resetConfirmation.style.display = 'none'; // Ẩn thông báo
+        });
+
+        createBoard();
+    </script>
+</body>
+
+</html>
