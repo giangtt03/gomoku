@@ -10,15 +10,10 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            /* Căn giữa theo chiều ngang */
             justify-content: center;
-            /* Căn giữa theo chiều dọc */
             height: 100vh;
-            /* Chiều cao của màn hình */
             margin: 0;
-            /* Loại bỏ margin của body */
             background-color: #eaeaea;
-            /* Màu nền cho dễ nhìn */
         }
 
         #board {
@@ -26,7 +21,6 @@
             grid-template-columns: repeat(15, 40px);
             grid-gap: 2px;
             margin-top: 20px;
-            /* Khoảng cách giữa tiêu đề và bàn cờ */
         }
 
         .cell {
@@ -38,12 +32,13 @@
             align-items: center;
             font-size: 24px;
             cursor: pointer;
+            border: 1px solid #cccccc;
+            /* Thêm viền cho ô */
         }
 
         #status {
             margin-bottom: 10px;
             font-size: 20px;
-            /* Tăng kích thước chữ cho dễ đọc */
         }
 
         #reset-confirmation {
@@ -60,9 +55,30 @@
 
         button {
             margin: 5px;
-            /* Khoảng cách giữa các nút */
             padding: 10px 20px;
-            /* Padding cho nút */
+        }
+
+        p {
+            color: #333333;
+            /* Màu chữ cho thẻ <p> */
+            font-size: 16px;
+            /* Kích thước chữ cho thẻ <p> */
+            line-height: 1.5;
+            /* Khoảng cách giữa các dòng */
+            max-width: 800px;
+            /* Giới hạn chiều rộng của thẻ <p> */
+            text-align: center;
+            /* Căn giữa nội dung */
+            margin: 20px;
+            /* Thêm khoảng cách trên và dưới cho thẻ <p> */
+            /* background-color: #ffffff; */
+            /* Nền trắng cho dễ đọc */
+            padding: 15px;
+            /* Thêm padding cho thẻ <p> */
+            border-radius: 8px;
+            /* Bo tròn các góc */
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            /* Thêm bóng nhẹ cho thẻ <p> */
         }
     </style>
 </head>
@@ -78,6 +94,11 @@
         <button id="no-play-again">No</button>
     </div>
 
+    <div>
+        <p>Gomoku, also known as Five in a Row, is an abstract strategy board game that can be played on paper as once placed, pieces are not moved. The term Gomoku originates from Japanese (gomokunarabe), where "go" means five, "moku" refers to pieces, and "narabe" means line-up. Learn more on the <span id="wikipedia-link" style="color:blue; text-decoration:underline; cursor:pointer;">Wikipedia Gomoku</span> page.</p>
+
+    </div>
+
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
@@ -91,6 +112,10 @@
         let resetVotes = {};
         let otherPlayerId = null; // Biến lưu ID của người chơi khác
         let bothPlayersAgreed = false; // Biến theo dõi trạng thái rétart
+
+        document.getElementById('wikipedia-link').addEventListener('click', function () {
+            window.open('https://en.wikipedia.org/wiki/Gomoku', '_blank'); 
+        });
 
         const createBoard = () => {
             board.innerHTML = ''; // Xóa bàn cờ cũ
