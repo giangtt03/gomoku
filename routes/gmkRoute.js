@@ -6,7 +6,9 @@ const router = express.Router();
 
 router.get('/', (req, res) => {
     // console.log('Request for index.html received');
-    res.sendFile(path.join(__dirname, '../views/index.html'));
+    // res.sendFile(path.join(__dirname, '../views/index.html'));
+    res.sendFile(path.join(__dirname, '../views/createGuest.html'));
+
 });
 
 module.exports = (io) => {

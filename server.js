@@ -21,13 +21,17 @@ mongoose.connect(process.env.MONGO_URL).then(()=>{
     console.log('Db connected')
 }).catch((err)=> console.log(err));
 
-app.use(favicon(__dirname + '/public/fac.ico'));
+app.use(favicon(__dirname + '/public/fac.ico')); // Ctrl + F5 clear cache
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use(express.static('public'));
+app.use(express.json());
+
 
 app.use(methodOverride('_method'));
 
@@ -46,12 +50,14 @@ const io = new Server(server, {
 
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static('public'));
-app.use(express.json());
 
 const gameRoutes = require('./routes/gmkRoute');
+const guestRoutes = require('./routes/guestRoutes');
+
 
 app.use('/', gameRoutes(io)); 
+app.use('/go', guestRoutes(io));
+
 
 server.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);

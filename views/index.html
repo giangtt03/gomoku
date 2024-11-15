@@ -80,6 +80,36 @@
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
             /* Thêm bóng nhẹ cho thẻ <p> */
         }
+
+        .highlight {
+            background-color: #e7e7f9;
+        }
+
+        #guest-info {
+            display: block;
+            /* hoặc 'inline' nếu bạn muốn nó nằm trong dòng */
+            position: absolute;
+            /* hoặc 'fixed' tùy thuộc vào cách bạn muốn nó hiển thị */
+            top: 20px;
+            /* vị trí cách từ trên cùng 20 pixel */
+            left: 20px;
+            /* vị trí cách từ bên trái 20 pixel */
+            background-color: white;
+            /* nền trắng */
+            border: 1px solid black;
+            /* viền đen */
+            padding: 10px;
+            /* khoảng cách bên trong */
+            z-index: 1000;
+            /* đảm bảo nó nằm trên các phần tử khác */
+        }
+
+
+        #guest-info img {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+        }
     </style>
 </head>
 
@@ -88,14 +118,29 @@
     <div id="status">Waiting for another player...</div>
     <div id="board"></div>
 
+    <div id="guest-info" style="display: none;">
+        <h2>Guest Information</h2>
+        <p><strong>ID:</strong> <span id="guest-id"></span></p>
+        <p><strong>IP:</strong> <span id="guest-ip"></span></p>
+        <p><strong>Country:</strong> <span id="guest-country"></span></p>
+        <p><strong>Status:</strong> <span id="guest-status"></span></p>
+        <p><strong>Win Rate:</strong> <span id="guest-winrate"></span></p>
+        <img id="guest-avatar" alt="Avatar">
+        <p><strong>Joined At:</strong> <span id="guest-joined-at"></span></p>
+        <p><strong>Game History:</strong> <span id="guest-game-history"></span></p>
+    </div>
+
     <div id="reset-confirmation">
         <p id="winner-message"></p>
+        <p>Time remaining: <span id="countdown-timer">10</span>s</p>
         <button id="yes-play-again">Yes</button>
         <button id="no-play-again">No</button>
     </div>
-
     <div>
-        <p>Gomoku, also known as Five in a Row, is an abstract strategy board game that can be played on paper as once placed, pieces are not moved. The term Gomoku originates from Japanese (gomokunarabe), where "go" means five, "moku" refers to pieces, and "narabe" means line-up. Learn more on the <span id="wikipedia-link" style="color:blue; text-decoration:underline; cursor:pointer;">Wikipedia Gomoku</span> page.</p>
+        <p>Gomoku, also known as Five in a Row, is an abstract strategy board game that can be played on paper as once
+            placed, pieces are not moved. The term Gomoku originates from Japanese (gomokunarabe), where "go" means
+            five, "moku" refers to pieces, and "narabe" means line-up. Learn more on the <span id="wikipedia-link"
+                style="color:blue; text-decoration:underline; cursor:pointer;">Wikipedia Gomoku</span> page.</p>
 
     </div>
 
@@ -112,9 +157,11 @@
         let resetVotes = {};
         let otherPlayerId = null; // Biến lưu ID của người chơi khác
         let bothPlayersAgreed = false; // Biến theo dõi trạng thái rétart
+        let countdownInterval;
+        let lastMoveCell = null; // Biến lưu trữ ô cuối cùng đã đánh
 
         document.getElementById('wikipedia-link').addEventListener('click', function () {
-            window.open('https://en.wikipedia.org/wiki/Gomoku', '_blank'); 
+            window.open('https://en.wikipedia.org/wiki/Gomoku', '_blank');
         });
 
         const createBoard = () => {
@@ -158,6 +205,15 @@
             const { row, col, player } = data;
             const cell = board.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
             cell.innerText = player === 1 ? 'X' : 'O'; // Cập nhật ô với X hoặc O
+
+            // Xóa highlight từ ô trước đó nếu có
+            if (lastMoveCell) {
+                lastMoveCell.classList.remove('highlight');
+            }
+
+            // Thêm highlight vào ô mới
+            cell.classList.add('highlight');
+            lastMoveCell = cell; // Cập nhật ô cuối cùng đã đánh
             currentTurn = player === 1 ? 2 : 1; // Cập nhật lượt chơi
             statusDiv.innerText = `Player ${currentTurn === playerNumber ? 'you' : currentTurn}'s turn.`; // Cập nhật thông báo
         });
@@ -171,12 +227,32 @@
             gameStarted = false;
             winnerMessage.innerText = `Player ${player} wins! Do you want to play again?`;
             resetConfirmation.style.display = 'block'; // Hiện thông báo chơi lại
+            startCountdown();
         });
+
+        function startCountdown() {
+            let countdown = 10;
+            document.getElementById('countdown-timer').innerText = countdown;
+
+            // Xóa bất kỳ interval nào trước đó để tránh đếm ngược nhiều lần
+            clearInterval(countdownInterval);
+
+            countdownInterval = setInterval(() => {
+                countdown--;
+                document.getElementById('countdown-timer').innerText = countdown;
+
+                if (countdown <= 0) {
+                    clearInterval(countdownInterval); // Dừng đếm ngược
+                    document.getElementById('no-play-again').click(); // Tự động chọn "No"
+                }
+            }, 1000); // Cập nhật mỗi giây
+        }
 
         // Xử lý nút "Yes" để chơi lại
         document.getElementById('yes-play-again').addEventListener('click', () => {
             console.log('Yes clicked');
             resetVotes[playerNumber] = true;
+            clearInterval(countdownInterval); // Dừng đếm ngược khi người chơi đã chọn
             if (resetVotes[playerNumber] && resetVotes[otherPlayerId]) {
                 bothPlayersAgreed = true;
                 socket.emit('reset-request', playerNumber);
@@ -212,6 +288,7 @@
         document.getElementById('no-play-again').addEventListener('click', () => {
             console.log('No clicked');
             resetConfirmation.style.display = 'none'; // Ẩn thông báo
+            clearInterval(countdownInterval);
             resetVotes = {};
         });
 
@@ -225,6 +302,129 @@
             statusDiv.innerText = `Game restarted. You are player ${playerNumber}.`;
             resetConfirmation.style.display = 'none'; // Ẩn thông báo
         });
+
+        //     socket.on('guest-id-assigned', (guestId) => {
+        //         // Gọi hàm fetchGuestData khi guest ID được gán
+        //         fetchGuestData(guestId);
+        //     });
+
+        //     async function fetchGuestData(guestId) {
+        //         try {
+        //             const response = await fetch(`/go/guest/${guestId}`);
+        //             if (!response.ok) {
+        //                 throw new Error('Network response was not ok');
+        //             }
+        //             const guestData = await response.json();
+        //             updateAvatarDisplay(guestData);
+        //         } catch (error) {
+        //             console.error('Error fetching guest data:', error);
+        //         }
+        //     }
+
+        //     function updateAvatarDisplay(guestData) {
+        //         const avatarContainer = document.createElement('div');
+        //         avatarContainer.innerHTML = `
+        //     <h2>Guest Information</h2>
+        //     <p><strong>ID:</strong> ${guestData.guestId}</p>
+        //     <p><strong>IP:</strong> ${guestData.ip}</p>
+        //     <p><strong>Country:</strong> ${guestData.country}</p>
+        //     <p><strong>Status:</strong> ${guestData.status}</p>
+        //     <p><strong>Win Rate:</strong> ${guestData.winRate}</p>
+        //     <img src="${guestData.avatar}" alt="Avatar" style="width: 100px; height: 100px;">
+        //     <p><strong>Joined At:</strong> ${new Date(guestData.joinedAt).toLocaleString()}</p>
+        //     <p><strong>Game History:</strong> ${guestData.gameHistory.length > 0 ? guestData.gameHistory.join(', ') : 'No games played yet.'}</p>
+        // `;
+        //         document.body.appendChild(avatarContainer);
+        //     }
+
+        // socket.on('guest-id-assigned', (guestId) => {
+        //     console.log(`Guest ID assigned: ${guestId}`);
+        //     fetchGuestData(guestId);
+        // });
+
+        // async function fetchGuestData(guestId) {
+        //     try {
+        //         const response = await fetch(`/go/guest/${guestId}`);
+        //         console.log(`Fetching guest data from: /go/guest/${guestId}`);
+        //         if (!response.ok) {
+        //             const errorDetails = await response.text();
+        //             console.error('Network response was not ok:', errorDetails);
+        //             throw new Error('Network response was not ok');
+        //         }
+
+        //         const guestData = await response.json();
+        //         console.log('Guest Data:', guestData);
+        //         updateAvatarDisplay(guestData);
+        //     } catch (error) {
+        //         console.error('Error fetching guest data:', error);
+        //     }
+        // }
+
+        // function updateAvatarDisplay(guestData) {
+        //     console.log('Updating display with guest data:', guestData);
+
+        //     document.getElementById('guest-id').innerText = guestData.guestId;
+        //     document.getElementById('guest-ip').innerText = guestData.ip;
+        //     document.getElementById('guest-country').innerText = guestData.country;
+        //     document.getElementById('guest-status').innerText = guestData.status;
+        //     document.getElementById('guest-winrate').innerText = guestData.winRate;
+        //     document.getElementById('guest-avatar').src = guestData.avatar;
+        //     document.getElementById('guest-joined-at').innerText = new Date(guestData.joinedAt).toLocaleString();
+        //     document.getElementById('guest-game-history').innerText = guestData.gameHistory.length > 0 ? guestData.gameHistory.join(', ') : 'No games played yet.';
+
+        //     document.getElementById('guest-info').style.display = 'block';
+        // }
+
+        // socket.on('guest-created', (guestId) => {
+        //     console.log(`Fetching data for guest ID: ${guestId}`);
+        //     fetch(`/go/guest/${guestId}`)
+        //         .then(response => {
+        //             console.log(`Response status: ${response.status}`);
+        //             if (!response.ok) throw new Error('Network response was not ok');
+        //             return response.json();
+        //         })
+        //         .then(data => {
+        //             document.getElementById('guest-id').innerText = data.guestId;
+        //             document.getElementById('guest-ip').innerText = data.ip;
+        //             document.getElementById('guest-country').innerText = data.country;
+        //             document.getElementById('guest-status').innerText = data.status;
+        //             document.getElementById('guest-winrate').innerText = `${data.winRate.toFixed(2)}%`;
+        //             document.getElementById('guest-joined-at').innerText = new Date(data.createdAt).toLocaleString();
+        //             document.getElementById('guest-game-history').innerText = data.gameHistory.map(game => `${game.result} at ${new Date(game.playedAt).toLocaleString()}`).join(', ');
+        //             document.getElementById('guest-avatar').src = data.avatar;
+        //             document.getElementById('guest-info').style.display = 'block';
+        //         })
+        //         .catch(error => {
+        //             console.error('There was a problem with the fetch operation:', error);
+        //         });
+        // });
+        async function fetchGuestData(guestId) {
+            try {
+                console.log("aaaaaaaaaaaa");
+                
+                const response = await fetch(`/go/guest/${guestId}`);
+                const data = await response.json();
+                console.log(data);
+
+                document.getElementById('guest-id').innerText = data.guestId;
+                document.getElementById('guest-ip').innerText = data.ip;
+                document.getElementById('guest-country').innerText = data.country;
+                document.getElementById('guest-status').innerText = data.status;
+                document.getElementById('guest-winrate').innerText = data.winRate || 0; 
+                document.getElementById('guest-joined-at').innerText = new Date(data.createdAt).toLocaleString();
+                document.getElementById('guest-game-history').innerText = data.gameHistory.join(', ') || 'Chưa có lịch sử trò chơi';
+                document.getElementById('guest-info').style.display = 'block'; 
+            } catch (error) {
+                console.error('Error fetching guest data:', error);
+            }
+        }
+        socket.on('guest-created', (guestId) => {
+            fetchGuestData(guestId);
+        });
+
+
+
+
 
         createBoard();
     </script>

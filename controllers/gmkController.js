@@ -1,5 +1,6 @@
 let rooms = {};  // Quản lý các phòng
 let roomCounter = 0;  // Đếm số phòng
+const Guest = require('../models/Guest');
 
 const findAvailableRoom = () => {
     for (const room in rooms) {
@@ -191,5 +192,22 @@ const handleDisconnect = (socket, room) => {
         delete rooms[room];
     }
 };
+
+// const infoG = (room, io) =>{
+    
+// socket.on('new-player', async (guestId, playerNumber) => {
+//     try {
+//         const playerData = await fetchGuestData(guestId);
+//         updatePlayerDisplay(playerData, playerNumber);
+//         socket.emit('update-player-info', playerData, playerNumber); // Phát thông tin người chơi đến client khác
+//     } catch (error) {
+//         console.error('Error fetching player data:', error);
+//     }
+// });
+
+
+// }
+
+
 
 module.exports = { setupGame, findAvailableRoom, checkWin };
