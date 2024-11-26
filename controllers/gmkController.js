@@ -146,8 +146,6 @@ const handleReset = (room, io) => {
     rooms[room].resetVotes = {}; 
 };
 
-
-
 const handleMove = (data, socket, room, io) => {
     const { row, col, player } = data;
     const board = rooms[room].board;
@@ -172,12 +170,44 @@ const handleMove = (data, socket, room, io) => {
     if (checkWin(board, row, col, player)) {
         io.to(room).emit('win', player);
         console.log(`Player ${player} wins!`);
+
+        // Save win/loss result in the database for both players
+        const winnerGuest = rooms[room].players.find(s => s.id === player);
+        const loserGuest = rooms[room].players.find(s => s.id !== player);
+
+        if (winnerGuest) {
+            updateGameHistory(winnerGuest, 'win', room);
+        }
+        if (loserGuest) {
+            updateGameHistory(loserGuest, 'lose', room);
+        }
         return;
     }
 
     rooms[room].turn = turn === 1 ? 2 : 1;
     console.log(`Turn changed to player ${rooms[room].turn}`);
     io.to(room).emit('turn-changed', rooms[room].turn);
+};
+
+const updateGameHistory = async (guestSocket, result, roomId) => {
+    const guestId = guestSocket.handshake.query.guestId;
+    try {
+        const guest = await Guest.findOne({ guestId });
+        if (!guest) {
+            console.log('Guest not found for updating history');
+            return;
+        }
+
+        guest.gameHistory.push({ roomId, result, playedAt: new Date() });
+
+        const winCount = guest.gameHistory.filter(game => game.result === 'win').length;
+        guest.winRate = (winCount / guest.gameHistory.length) * 100;
+
+        await guest.save();
+        console.log(`Guest history updated for ${guestId} with result: ${result}`);
+    } catch (error) {
+        console.error('Error updating guest history:', error);
+    }
 };
 
 const handleDisconnect = (socket, room) => {

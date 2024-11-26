@@ -14,6 +14,8 @@ const { Server } = require('socket.io');
 const app = express();
 app.use(cors());
 
+app.use('/', express.static('public/atau.jpg'));
+
 dotenv.config();
 app.use(morgan('dev'));
 app.use(cookieParser());

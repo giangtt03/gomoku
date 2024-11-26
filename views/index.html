@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gomoku Realtime</title>
+    <script src="https://cdn.jsdelivr.net/npm/tailwindcss@3.2.4/lib/index.js"></script> 
     <style>
         body {
             display: flex;
@@ -13,12 +14,14 @@
             justify-content: center;
             height: 100vh;
             margin: 0;
-            background-color: #eaeaea;
+            background-color: #322f2f; 
+            color: white; 
+            font-family: Arial, sans-serif;
         }
 
         #board {
             display: grid;
-            grid-template-columns: repeat(15, 40px);
+            grid-template-columns: repeat(19, 40px); 
             grid-gap: 2px;
             margin-top: 20px;
         }
@@ -26,13 +29,14 @@
         .cell {
             width: 40px;
             height: 40px;
-            background-color: #f0f0f0;
+            background-color: #444444; 
             display: flex;
             justify-content: center;
             align-items: center;
             font-size: 24px;
             cursor: pointer;
-            border: 1px solid #cccccc;
+            border: 1px solid #888888;
+            border-radius: 4px; 
         }
 
         #status {
@@ -55,10 +59,14 @@
         button {
             margin: 5px;
             padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
         }
 
         p {
-            color: #333333;
+            color: #dddddd; 
             font-size: 16px;
             line-height: 1.5;
             max-width: 800px;
@@ -72,13 +80,12 @@
         .highlight {
             background-color: #e7e7f9;
         }
-
     </style>
 </head>
 
 <body>
-    <h1>Gomoku Realtime</h1>
-    <div id="status">Waiting for another player...</div>
+    <h1 class="text-4xl font-bold">Gomoku Realtime</h1>
+    <div id="status" class="mt-5">Waiting for another player...</div>
     <div id="board"></div>
     <div id="reset-confirmation">
         <p id="winner-message"></p>
@@ -90,8 +97,7 @@
         <p>Gomoku, also known as Five in a Row, is an abstract strategy board game that can be played on paper as once
             placed, pieces are not moved. The term Gomoku originates from Japanese (gomokunarabe), where "go" means
             five, "moku" refers to pieces, and "narabe" means line-up. Learn more on the <span id="wikipedia-link"
-                style="color:blue; text-decoration:underline; cursor:pointer;">Wikipedia Gomoku</span> page.</p>
-
+                style="color:rgb(73, 73, 140); text-decoration:underline; cursor:pointer;">Wikipedia Gomoku</span> page.</p>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
@@ -103,18 +109,18 @@
         const winnerMessage = document.getElementById('winner-message');
         let playerNumber = null;
         let gameStarted = false;
-        let currentTurn = 1; 
+        let currentTurn = 1;
         let resetVotes = {};
         let otherPlayerId = null;
-        let bothPlayersAgreed = false; 
+        let bothPlayersAgreed = false;
         let countdownInterval;
-        let lastMoveCell = null; 
+        let lastMoveCell = null;
         const urlParams = new URLSearchParams(window.location.search);
         const guestId = urlParams.get('guestId');
+
         const fetchGuestData = async () => {
             try {
                 const response = await fetch(`/go/guest/${guestId}`);
-                
                 if (!response.ok) {
                     throw new Error('Failed to fetch guest data');
                 }
@@ -133,26 +139,29 @@
             }
         };
 
-        // Display guest information
         const displayGuestInfo = (guest) => {
-            statusDiv.innerText = `Guest Info: ID - ${guest.guestId}, Status - ${guest.status}`;
+            statusDiv.innerHTML = `
+                <div>
+                    <img src="${guest.avatar}" alt="Guest Avatar" style="width: 50px; height: 50px; border-radius: 50%;">
+                    <p>${guest.guestName}</p>
+                </div>
+            `;
         };
 
         if (guestId) {
-            fetchGuestData(guestId); 
+            fetchGuestData(guestId);
         } else {
             console.error("Guest ID is missing in the URL.");
         }
 
-        
         document.getElementById('wikipedia-link').addEventListener('click', function () {
             window.open('https://en.wikipedia.org/wiki/Gomoku', '_blank');
         });
 
         const createBoard = () => {
-            board.innerHTML = ''; 
-            for (let i = 0; i < 15; i++) {
-                for (let j = 0; j < 15; j++) {
+            board.innerHTML = '';
+            for (let i = 0; i < 19; i++) { 
+                for (let j = 0; j < 19; j++) {
                     const cell = document.createElement('div');
                     cell.classList.add('cell');
                     cell.dataset.row = i;
@@ -176,7 +185,7 @@
         socket.on('player-assigned', (number) => {
             playerNumber = number;
             statusDiv.innerText = `You are player ${playerNumber}. Waiting for another player...`;
-            fetchGuestData(); 
+            fetchGuestData();
         });
 
         socket.on('game-start', (otherPlayer) => {
@@ -196,20 +205,20 @@
             }
 
             cell.classList.add('highlight');
-            lastMoveCell = cell; 
+            lastMoveCell = cell;
             currentTurn = player === 1 ? 2 : 1;
-            statusDiv.innerText = `Player ${currentTurn === playerNumber ? 'you' : currentTurn}'s turn.`; 
+            statusDiv.innerText = `Player ${currentTurn === playerNumber ? 'you' : currentTurn}'s turn.`;
         });
 
         socket.on('turn-changed', (newTurn) => {
-            currentTurn = newTurn; 
-            statusDiv.innerText = `Player ${currentTurn === playerNumber ? 'you' : currentTurn}'s turn.`; 
+            currentTurn = newTurn;
+            statusDiv.innerText = `Player ${currentTurn === playerNumber ? 'you' : currentTurn}'s turn.`;
         });
 
         socket.on('win', (player) => {
             gameStarted = false;
             winnerMessage.innerText = `Player ${player} wins! Do you want to play again?`;
-            resetConfirmation.style.display = 'block'; 
+            resetConfirmation.style.display = 'block';
             startCountdown();
         });
 
@@ -224,8 +233,8 @@
                 document.getElementById('countdown-timer').innerText = countdown;
 
                 if (countdown <= 0) {
-                    clearInterval(countdownInterval); 
-                    document.getElementById('no-play-again').click(); 
+                    clearInterval(countdownInterval);
+                    document.getElementById('no-play-again').click();
                 }
             }, 1000);
         }
@@ -233,7 +242,7 @@
         document.getElementById('yes-play-again').addEventListener('click', () => {
             console.log('Yes clicked');
             resetVotes[playerNumber] = true;
-            clearInterval(countdownInterval); 
+            clearInterval(countdownInterval);
             if (resetVotes[playerNumber] && resetVotes[otherPlayerId]) {
                 bothPlayersAgreed = true;
                 socket.emit('reset-request', playerNumber);
@@ -241,33 +250,13 @@
                 socket.emit('reset-request', playerNumber);
             }
         });
-        socket.on('reset-confirmation', (playerId) => {
-            resetVotes[playerId] = true;
-            console.log(`Player ${playerId} agreed to reset. Current resetVotes: `, resetVotes);
-
-            if (Object.keys(resetVotes).length === 2) {
-                console.log('Both players agreed to reset. Sending reset-accepted.');
-                socket.emit('reset-accepted'); }
-        });
-
 
         document.getElementById('no-play-again').addEventListener('click', () => {
-            console.log('No clicked');
-            resetConfirmation.style.display = 'none'; 
-            clearInterval(countdownInterval);
+            resetConfirmation.style.display = 'none';
+            socket.emit('game-reset', { restart: false });
             resetVotes = {};
         });
 
-        socket.on('reset', () => {
-            console.log('Received reset event from server.');
-            resetVotes = {};
-            createBoard();
-            gameStarted = true;
-            currentTurn = 1; 
-            statusDiv.innerText = `Game restarted. You are player ${playerNumber}.`;
-            resetConfirmation.style.display = 'none'; 
-        });
-       
         createBoard();
     </script>
 </body>
