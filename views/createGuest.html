@@ -23,7 +23,7 @@
         });
 
         function joinAsGuest() {
-            console.log("Guest button clicked!"); // Ghi log để kiểm tra
+            console.log("Guest button clicked!"); 
             fetch('/go/guest', { method: 'POST' }) 
                 .then(response => {
                     if (!response.ok) {
@@ -32,18 +32,35 @@
                     return response.json();
                 })
                 .then(data => {
-                    const guestId = data.guestId; // Lưu guestId
-                    displayGuestInfo(guestId); // Hiển thị thông tin guest
-                    // Chuyển đến màn chơi Gomoku
-                    window.location.href = '/go/play';
+                    const guestId = data.guestId; 
+                    // displayGuestInfo(guestId);
+                    window.location.href = `/go/play?guestId=${guestId}`
+                    // window.location.href = '/go/play';
                 })
                 .catch(error => console.error('Error:', error));
         }
 
-        function displayGuestInfo(guestId) {
-            const guestInfoElement = document.getElementById('guest-info');
-            guestInfoElement.innerHTML = `Guest ID: ${guestId}`;
-        }
+//         function displayGuestInfo(guestId) {
+//     const cachedGuestData = localStorage.getItem(`guest-${guestId}`);
+//     if (cachedGuestData) {
+//         const guestData = JSON.parse(cachedGuestData);
+//         updateGuestInfoUI(guestData);
+//     } else {
+//         fetch(`/go/guest/${guestId}`)
+//             .then(response => response.json())
+//             .then(data => {
+//                 localStorage.setItem(`guest-${guestId}`, JSON.stringify(data.guest));  // Cache the data
+//                 updateGuestInfoUI(data.guest);
+//             })
+//             .catch(error => console.error('Error fetching guest data:', error));
+//     }
+// }
+
+// function updateGuestInfoUI(guest) {
+//     const guestInfoElement = document.getElementById('guest-info');
+//     guestInfoElement.innerHTML = `Guest ID: ${guest.guestId}, Status: ${guest.status}`;
+// }
+
     </script>
 </body>
 

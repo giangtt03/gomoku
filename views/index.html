@@ -33,7 +33,6 @@
             font-size: 24px;
             cursor: pointer;
             border: 1px solid #cccccc;
-            /* Thêm viền cho ô */
         }
 
         #status {
@@ -60,56 +59,20 @@
 
         p {
             color: #333333;
-            /* Màu chữ cho thẻ <p> */
             font-size: 16px;
-            /* Kích thước chữ cho thẻ <p> */
             line-height: 1.5;
-            /* Khoảng cách giữa các dòng */
             max-width: 800px;
-            /* Giới hạn chiều rộng của thẻ <p> */
             text-align: center;
-            /* Căn giữa nội dung */
             margin: 20px;
-            /* Thêm khoảng cách trên và dưới cho thẻ <p> */
-            /* background-color: #ffffff; */
-            /* Nền trắng cho dễ đọc */
             padding: 15px;
-            /* Thêm padding cho thẻ <p> */
             border-radius: 8px;
-            /* Bo tròn các góc */
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-            /* Thêm bóng nhẹ cho thẻ <p> */
         }
 
         .highlight {
             background-color: #e7e7f9;
         }
 
-        #guest-info {
-            display: block;
-            /* hoặc 'inline' nếu bạn muốn nó nằm trong dòng */
-            position: absolute;
-            /* hoặc 'fixed' tùy thuộc vào cách bạn muốn nó hiển thị */
-            top: 20px;
-            /* vị trí cách từ trên cùng 20 pixel */
-            left: 20px;
-            /* vị trí cách từ bên trái 20 pixel */
-            background-color: white;
-            /* nền trắng */
-            border: 1px solid black;
-            /* viền đen */
-            padding: 10px;
-            /* khoảng cách bên trong */
-            z-index: 1000;
-            /* đảm bảo nó nằm trên các phần tử khác */
-        }
-
-
-        #guest-info img {
-            width: 100px;
-            height: 100px;
-            border-radius: 50%;
-        }
     </style>
 </head>
 
@@ -117,19 +80,6 @@
     <h1>Gomoku Realtime</h1>
     <div id="status">Waiting for another player...</div>
     <div id="board"></div>
-
-    <div id="guest-info" style="display: none;">
-        <h2>Guest Information</h2>
-        <p><strong>ID:</strong> <span id="guest-id"></span></p>
-        <p><strong>IP:</strong> <span id="guest-ip"></span></p>
-        <p><strong>Country:</strong> <span id="guest-country"></span></p>
-        <p><strong>Status:</strong> <span id="guest-status"></span></p>
-        <p><strong>Win Rate:</strong> <span id="guest-winrate"></span></p>
-        <img id="guest-avatar" alt="Avatar">
-        <p><strong>Joined At:</strong> <span id="guest-joined-at"></span></p>
-        <p><strong>Game History:</strong> <span id="guest-game-history"></span></p>
-    </div>
-
     <div id="reset-confirmation">
         <p id="winner-message"></p>
         <p>Time remaining: <span id="countdown-timer">10</span>s</p>
@@ -153,19 +103,54 @@
         const winnerMessage = document.getElementById('winner-message');
         let playerNumber = null;
         let gameStarted = false;
-        let currentTurn = 1; // Lượt đầu tiên là của Player 1
+        let currentTurn = 1; 
         let resetVotes = {};
-        let otherPlayerId = null; // Biến lưu ID của người chơi khác
-        let bothPlayersAgreed = false; // Biến theo dõi trạng thái rétart
+        let otherPlayerId = null;
+        let bothPlayersAgreed = false; 
         let countdownInterval;
-        let lastMoveCell = null; // Biến lưu trữ ô cuối cùng đã đánh
+        let lastMoveCell = null; 
+        const urlParams = new URLSearchParams(window.location.search);
+        const guestId = urlParams.get('guestId');
+        const fetchGuestData = async () => {
+            try {
+                const response = await fetch(`/go/guest/${guestId}`);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch guest data');
+                }
 
+                const contentType = response.headers.get('Content-Type');
+                if (contentType && contentType.includes('application/json')) {
+                    const data = await response.json();
+                    if (data.guest) {
+                        displayGuestInfo(data.guest);
+                    }
+                } else {
+                    throw new Error('Response is not JSON');
+                }
+            } catch (error) {
+                console.error('Error fetching guest data:', error);
+            }
+        };
+
+        // Display guest information
+        const displayGuestInfo = (guest) => {
+            statusDiv.innerText = `Guest Info: ID - ${guest.guestId}, Status - ${guest.status}`;
+        };
+
+        if (guestId) {
+            fetchGuestData(guestId); 
+        } else {
+            console.error("Guest ID is missing in the URL.");
+        }
+
+        
         document.getElementById('wikipedia-link').addEventListener('click', function () {
             window.open('https://en.wikipedia.org/wiki/Gomoku', '_blank');
         });
 
         const createBoard = () => {
-            board.innerHTML = ''; // Xóa bàn cờ cũ
+            board.innerHTML = ''; 
             for (let i = 0; i < 15; i++) {
                 for (let j = 0; j < 15; j++) {
                     const cell = document.createElement('div');
@@ -177,7 +162,6 @@
 
                     cell.addEventListener('click', () => {
                         if (!cell.innerText && playerNumber && gameStarted && currentTurn === playerNumber) {
-                            // Gửi thông tin nước đi
                             socket.emit('move', {
                                 row: i,
                                 col: j,
@@ -192,6 +176,7 @@
         socket.on('player-assigned', (number) => {
             playerNumber = number;
             statusDiv.innerText = `You are player ${playerNumber}. Waiting for another player...`;
+            fetchGuestData(); 
         });
 
         socket.on('game-start', (otherPlayer) => {
@@ -204,29 +189,27 @@
         socket.on('move', (data) => {
             const { row, col, player } = data;
             const cell = board.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
-            cell.innerText = player === 1 ? 'X' : 'O'; // Cập nhật ô với X hoặc O
+            cell.innerText = player === 1 ? 'X' : 'O';
 
-            // Xóa highlight từ ô trước đó nếu có
             if (lastMoveCell) {
                 lastMoveCell.classList.remove('highlight');
             }
 
-            // Thêm highlight vào ô mới
             cell.classList.add('highlight');
-            lastMoveCell = cell; // Cập nhật ô cuối cùng đã đánh
-            currentTurn = player === 1 ? 2 : 1; // Cập nhật lượt chơi
-            statusDiv.innerText = `Player ${currentTurn === playerNumber ? 'you' : currentTurn}'s turn.`; // Cập nhật thông báo
+            lastMoveCell = cell; 
+            currentTurn = player === 1 ? 2 : 1;
+            statusDiv.innerText = `Player ${currentTurn === playerNumber ? 'you' : currentTurn}'s turn.`; 
         });
 
         socket.on('turn-changed', (newTurn) => {
-            currentTurn = newTurn; // Cập nhật lượt đi mới
-            statusDiv.innerText = `Player ${currentTurn === playerNumber ? 'you' : currentTurn}'s turn.`; // Cập nhật thông báo
+            currentTurn = newTurn; 
+            statusDiv.innerText = `Player ${currentTurn === playerNumber ? 'you' : currentTurn}'s turn.`; 
         });
 
         socket.on('win', (player) => {
             gameStarted = false;
             winnerMessage.innerText = `Player ${player} wins! Do you want to play again?`;
-            resetConfirmation.style.display = 'block'; // Hiện thông báo chơi lại
+            resetConfirmation.style.display = 'block'; 
             startCountdown();
         });
 
@@ -234,7 +217,6 @@
             let countdown = 10;
             document.getElementById('countdown-timer').innerText = countdown;
 
-            // Xóa bất kỳ interval nào trước đó để tránh đếm ngược nhiều lần
             clearInterval(countdownInterval);
 
             countdownInterval = setInterval(() => {
@@ -242,17 +224,16 @@
                 document.getElementById('countdown-timer').innerText = countdown;
 
                 if (countdown <= 0) {
-                    clearInterval(countdownInterval); // Dừng đếm ngược
-                    document.getElementById('no-play-again').click(); // Tự động chọn "No"
+                    clearInterval(countdownInterval); 
+                    document.getElementById('no-play-again').click(); 
                 }
-            }, 1000); // Cập nhật mỗi giây
+            }, 1000);
         }
 
-        // Xử lý nút "Yes" để chơi lại
         document.getElementById('yes-play-again').addEventListener('click', () => {
             console.log('Yes clicked');
             resetVotes[playerNumber] = true;
-            clearInterval(countdownInterval); // Dừng đếm ngược khi người chơi đã chọn
+            clearInterval(countdownInterval); 
             if (resetVotes[playerNumber] && resetVotes[otherPlayerId]) {
                 bothPlayersAgreed = true;
                 socket.emit('reset-request', playerNumber);
@@ -260,172 +241,33 @@
                 socket.emit('reset-request', playerNumber);
             }
         });
-
-        // socket.on('reset-confirmation', (playerId) => {
-        //     resetVotes[playerId] = true; // Đánh dấu người chơi đã đồng ý
-        //     console.log(`Player ${playerId} agreed to reset. Current resetVotes: `, resetVotes);
-
-        //     // Kiểm tra nếu cả 2 ID người chơi đã đồng ý reset
-        //     if (Object.keys(resetVotes).length === 2) {
-        //         console.log('Both players agreed to reset. Sending reset-accepted.');
-        //         socket.emit('reset-accepted'); // Gửi reset-accepted khi cả hai đã đồng ý
-        //     }
-        // });
-
         socket.on('reset-confirmation', (playerId) => {
             resetVotes[playerId] = true;
             console.log(`Player ${playerId} agreed to reset. Current resetVotes: `, resetVotes);
 
-            // Kiểm tra xem cả hai người chơi đã đồng ý hay chưa
             if (Object.keys(resetVotes).length === 2) {
                 console.log('Both players agreed to reset. Sending reset-accepted.');
-                socket.emit('reset-accepted'); // Gửi reset-accepted khi cả hai đã đồng ý
-            }
+                socket.emit('reset-accepted'); }
         });
 
 
-        // Xử lý nút "No" để không chơi lại
         document.getElementById('no-play-again').addEventListener('click', () => {
             console.log('No clicked');
-            resetConfirmation.style.display = 'none'; // Ẩn thông báo
+            resetConfirmation.style.display = 'none'; 
             clearInterval(countdownInterval);
             resetVotes = {};
         });
 
-        // Reset lại trạng thái khi trò chơi được khởi động lại
         socket.on('reset', () => {
             console.log('Received reset event from server.');
             resetVotes = {};
-            createBoard(); // Tạo bàn cờ mới
+            createBoard();
             gameStarted = true;
-            currentTurn = 1; // Reset lại lượt đầu tiên là Player 1
+            currentTurn = 1; 
             statusDiv.innerText = `Game restarted. You are player ${playerNumber}.`;
-            resetConfirmation.style.display = 'none'; // Ẩn thông báo
+            resetConfirmation.style.display = 'none'; 
         });
-
-        //     socket.on('guest-id-assigned', (guestId) => {
-        //         // Gọi hàm fetchGuestData khi guest ID được gán
-        //         fetchGuestData(guestId);
-        //     });
-
-        //     async function fetchGuestData(guestId) {
-        //         try {
-        //             const response = await fetch(`/go/guest/${guestId}`);
-        //             if (!response.ok) {
-        //                 throw new Error('Network response was not ok');
-        //             }
-        //             const guestData = await response.json();
-        //             updateAvatarDisplay(guestData);
-        //         } catch (error) {
-        //             console.error('Error fetching guest data:', error);
-        //         }
-        //     }
-
-        //     function updateAvatarDisplay(guestData) {
-        //         const avatarContainer = document.createElement('div');
-        //         avatarContainer.innerHTML = `
-        //     <h2>Guest Information</h2>
-        //     <p><strong>ID:</strong> ${guestData.guestId}</p>
-        //     <p><strong>IP:</strong> ${guestData.ip}</p>
-        //     <p><strong>Country:</strong> ${guestData.country}</p>
-        //     <p><strong>Status:</strong> ${guestData.status}</p>
-        //     <p><strong>Win Rate:</strong> ${guestData.winRate}</p>
-        //     <img src="${guestData.avatar}" alt="Avatar" style="width: 100px; height: 100px;">
-        //     <p><strong>Joined At:</strong> ${new Date(guestData.joinedAt).toLocaleString()}</p>
-        //     <p><strong>Game History:</strong> ${guestData.gameHistory.length > 0 ? guestData.gameHistory.join(', ') : 'No games played yet.'}</p>
-        // `;
-        //         document.body.appendChild(avatarContainer);
-        //     }
-
-        // socket.on('guest-id-assigned', (guestId) => {
-        //     console.log(`Guest ID assigned: ${guestId}`);
-        //     fetchGuestData(guestId);
-        // });
-
-        // async function fetchGuestData(guestId) {
-        //     try {
-        //         const response = await fetch(`/go/guest/${guestId}`);
-        //         console.log(`Fetching guest data from: /go/guest/${guestId}`);
-        //         if (!response.ok) {
-        //             const errorDetails = await response.text();
-        //             console.error('Network response was not ok:', errorDetails);
-        //             throw new Error('Network response was not ok');
-        //         }
-
-        //         const guestData = await response.json();
-        //         console.log('Guest Data:', guestData);
-        //         updateAvatarDisplay(guestData);
-        //     } catch (error) {
-        //         console.error('Error fetching guest data:', error);
-        //     }
-        // }
-
-        // function updateAvatarDisplay(guestData) {
-        //     console.log('Updating display with guest data:', guestData);
-
-        //     document.getElementById('guest-id').innerText = guestData.guestId;
-        //     document.getElementById('guest-ip').innerText = guestData.ip;
-        //     document.getElementById('guest-country').innerText = guestData.country;
-        //     document.getElementById('guest-status').innerText = guestData.status;
-        //     document.getElementById('guest-winrate').innerText = guestData.winRate;
-        //     document.getElementById('guest-avatar').src = guestData.avatar;
-        //     document.getElementById('guest-joined-at').innerText = new Date(guestData.joinedAt).toLocaleString();
-        //     document.getElementById('guest-game-history').innerText = guestData.gameHistory.length > 0 ? guestData.gameHistory.join(', ') : 'No games played yet.';
-
-        //     document.getElementById('guest-info').style.display = 'block';
-        // }
-
-        // socket.on('guest-created', (guestId) => {
-        //     console.log(`Fetching data for guest ID: ${guestId}`);
-        //     fetch(`/go/guest/${guestId}`)
-        //         .then(response => {
-        //             console.log(`Response status: ${response.status}`);
-        //             if (!response.ok) throw new Error('Network response was not ok');
-        //             return response.json();
-        //         })
-        //         .then(data => {
-        //             document.getElementById('guest-id').innerText = data.guestId;
-        //             document.getElementById('guest-ip').innerText = data.ip;
-        //             document.getElementById('guest-country').innerText = data.country;
-        //             document.getElementById('guest-status').innerText = data.status;
-        //             document.getElementById('guest-winrate').innerText = `${data.winRate.toFixed(2)}%`;
-        //             document.getElementById('guest-joined-at').innerText = new Date(data.createdAt).toLocaleString();
-        //             document.getElementById('guest-game-history').innerText = data.gameHistory.map(game => `${game.result} at ${new Date(game.playedAt).toLocaleString()}`).join(', ');
-        //             document.getElementById('guest-avatar').src = data.avatar;
-        //             document.getElementById('guest-info').style.display = 'block';
-        //         })
-        //         .catch(error => {
-        //             console.error('There was a problem with the fetch operation:', error);
-        //         });
-        // });
-        async function fetchGuestData(guestId) {
-            try {
-                console.log("aaaaaaaaaaaa");
-                
-                const response = await fetch(`/go/guest/${guestId}`);
-                const data = await response.json();
-                console.log(data);
-
-                document.getElementById('guest-id').innerText = data.guestId;
-                document.getElementById('guest-ip').innerText = data.ip;
-                document.getElementById('guest-country').innerText = data.country;
-                document.getElementById('guest-status').innerText = data.status;
-                document.getElementById('guest-winrate').innerText = data.winRate || 0; 
-                document.getElementById('guest-joined-at').innerText = new Date(data.createdAt).toLocaleString();
-                document.getElementById('guest-game-history').innerText = data.gameHistory.join(', ') || 'Chưa có lịch sử trò chơi';
-                document.getElementById('guest-info').style.display = 'block'; 
-            } catch (error) {
-                console.error('Error fetching guest data:', error);
-            }
-        }
-        socket.on('guest-created', (guestId) => {
-            fetchGuestData(guestId);
-        });
-
-
-
-
-
+       
         createBoard();
     </script>
 </body>

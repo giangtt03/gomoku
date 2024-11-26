@@ -1,5 +1,5 @@
-let rooms = {};  // Quản lý các phòng
-let roomCounter = 0;  // Đếm số phòng
+let rooms = {}; 
+let roomCounter = 0; 
 const Guest = require('../models/Guest');
 
 const findAvailableRoom = () => {
@@ -49,7 +49,7 @@ const setupGame = (socket, io) => {
             players: [],
             board: Array(15).fill().map(() => Array(15).fill(0)),
             turn: 1,
-            resetVotes: {}  // Thêm biến để lưu trữ vote cho reset
+            resetVotes: {}
         };
     }
 
@@ -113,26 +113,21 @@ const setupGame = (socket, io) => {
     socket.on('reset-accepted', () => {
         const room = Object.keys(rooms).find(r => rooms[r].players.includes(socket));
     
-        if (!room) return; // Đảm bảo room hợp lệ
+        if (!room) return;
     
-        // Chỉ ghi lại vote nếu nó chưa tồn tại cho người chơi này
         if (!rooms[room].resetVotes[socket.id]) {
             rooms[room].resetVotes[socket.id] = true;
             console.log(`Player ${socket.id} agreed to reset.`);
         }
         console.log('Current reset votes:', rooms[room].resetVotes);
     
-        // Lấy ID của hai người chơi
         const [player1, player2] = rooms[room].players.map(playerSocket => playerSocket.id);
     
-        // Kiểm tra xem cả hai người chơi đã đồng ý hay chưa
         if (rooms[room].resetVotes[player1] && rooms[room].resetVotes[player2]) {
             console.log('Both players agreed to reset.');
             handleReset(room, io);
-            // Reset lại votes cho lần chơi lại tiếp theo
             rooms[room].resetVotes = {};
         } else {
-            // Nếu chỉ có một người chơi đồng ý, yêu cầu xác nhận lại cho người còn lại
             const otherPlayerSocket = rooms[room].players.find(s => s.id !== socket.id);
             if (otherPlayerSocket) {
                 otherPlayerSocket.emit('reset-confirmation', socket.id);
@@ -148,7 +143,7 @@ const handleReset = (room, io) => {
     rooms[room].board = Array(15).fill().map(() => Array(15).fill(0));
     rooms[room].turn = 1;
     io.to(room).emit('reset');
-    rooms[room].resetVotes = {}; // Reset vote cho lần chơi lại tiếp theo
+    rooms[room].resetVotes = {}; 
 };
 
 
@@ -192,22 +187,5 @@ const handleDisconnect = (socket, room) => {
         delete rooms[room];
     }
 };
-
-// const infoG = (room, io) =>{
-    
-// socket.on('new-player', async (guestId, playerNumber) => {
-//     try {
-//         const playerData = await fetchGuestData(guestId);
-//         updatePlayerDisplay(playerData, playerNumber);
-//         socket.emit('update-player-info', playerData, playerNumber); // Phát thông tin người chơi đến client khác
-//     } catch (error) {
-//         console.error('Error fetching player data:', error);
-//     }
-// });
-
-
-// }
-
-
 
 module.exports = { setupGame, findAvailableRoom, checkWin };
