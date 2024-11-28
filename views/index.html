@@ -182,8 +182,8 @@
         </div>
     </div>
     <div id="reset-confirmation">
-        <p id="winner-message"></p>
-        <p>Time remaining: <span id="countdown-timer">10</span>s</p>
+        <p id="winner-message">Winner: </p> 
+        <p>Res-G: <span id="countdown-timer">10</span>s</p>
         <button id="yes-play-again">Yes</button>
         <button id="no-play-again">No</button>
     </div>
@@ -204,6 +204,7 @@
         let gameStarted = false;
         let countdown;
         let swapTurn = false; 
+        let players = [];
 
         const startCountdown = () => {
             let time = 10;
@@ -230,12 +231,21 @@
         });
 
         socket.on('win', (winner) => {
-            gameStatus.textContent = `Người chơi ${winner} thắng!`;
-            gameStatus.style.display = 'block';
-            gameStarted = false;
+            // Tìm người thắng từ danh sách `players`
+            const winningPlayer = players.find(player => player.guestId === winner);
+            const winnerName = winningPlayer ? winningPlayer.name : winner; // Lấy `name` nếu tìm thấy, nếu không, dùng `guestId`
+
+            // Hiển thị thông báo người thắng
+            winnerMessage.textContent = `Winner: ${winnerName}`;
             resetConfirmation.style.display = 'block';
-            startCountdown();
+            gameStatus.textContent = `Người chơi ${winnerName} thắng!`;
+            gameStatus.style.display = 'block';
+
+            gameStarted = false; // Dừng trò chơi
+            startCountdown(); // Bắt đầu đếm ngược
         });
+
+
 
         socket.on('reset', ({ turn, swapTurn: newSwapTurn }) => {
             resetConfirmation.style.display = 'none';
@@ -245,8 +255,8 @@
 
             const cells = document.querySelectorAll('.cell');
             cells.forEach(cell => {
-                cell.textContent = ''; // Xóa nội dung ô
-                cell.classList.remove('taken'); // Gỡ bỏ trạng thái "đã được đánh dấu"
+                cell.textContent = '';
+                cell.classList.remove('taken'); 
             });
 
             gameStarted = true;
@@ -314,13 +324,26 @@
         };
 
 
-        socket.on('player-info', (players) => {
-            players.forEach((player) => {
-                if (player.id === socket.id) {
-                    playerNumber = player.guestId;
-                    console.log(`You are Guest ${playerNumber}`);
-                }
-            });
+        // socket.on('player-info', (players) => {
+        //     players.forEach((player) => {
+        //         if (player.id === socket.id) {
+        //             playerNumber = player.guestId;
+        //             console.log(`You are Guest ${playerNumber}`);
+        //         }
+        //     });
+
+        //     players.forEach((player, index) => {
+        //         const playerElement = document.getElementById(`player${index + 1}`);
+        //         if (playerElement) {
+        //             playerElement.querySelector('img').src = player.avatar || '/default-avatar.jpg';
+        //             playerElement.querySelector('p').textContent = player.name || `Player ${index + 1}`;
+        //         }
+        //     });
+
+        // });
+
+        socket.on('player-info', (updatedPlayers) => {
+            players = updatedPlayers; 
 
             players.forEach((player, index) => {
                 const playerElement = document.getElementById(`player${index + 1}`);
@@ -330,7 +353,9 @@
                 }
             });
 
+            console.log("Updated players:", players); 
         });
+
 
         const readyButton = document.getElementById('ready-btn');
             readyButton.addEventListener('click', () => {
