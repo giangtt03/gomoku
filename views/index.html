@@ -203,6 +203,7 @@
         let currentTurn = 1;
         let gameStarted = false;
         let countdown;
+        let swapTurn = false; 
 
         const startCountdown = () => {
             let time = 10;
@@ -236,25 +237,26 @@
             startCountdown();
         });
 
-        socket.on('reset', () => {
+        socket.on('reset', ({ turn, swapTurn: newSwapTurn }) => {
             resetConfirmation.style.display = 'none';
             clearInterval(countdown);
 
-            // Reset lại bàn cờ
+            swapTurn = newSwapTurn;
+
             const cells = document.querySelectorAll('.cell');
             cells.forEach(cell => {
-                cell.textContent = ''; // Xóa nội dung của ô
+                cell.textContent = ''; // Xóa nội dung ô
                 cell.classList.remove('taken'); // Gỡ bỏ trạng thái "đã được đánh dấu"
             });
 
-            // Reset lại trạng thái trò chơi
             gameStarted = true;
-            currentTurn = 1; // Đặt lại lượt đầu tiên
+            currentTurn = turn;
 
+            const playerSymbol = swapTurn ? ['O', 'X'] : ['X', 'O'];
             gameStatus.style.display = 'block';
-            gameStatus.textContent = 'Game restarted! Player 1 turn.';
+            gameStatus.textContent = `Game restarted! Player ${turn === socket.id ? 'you' : 'opponent'} turn (${playerSymbol[0]})`;
+            setTimeout(() => (gameStatus.style.display = 'none'), 2000);
         });
-
 
         const fetchGuestData = async (guestId) => {
             try {
@@ -290,10 +292,18 @@
                     cell.dataset.col = j;
 
                     cell.addEventListener('click', () => {
+                        if (cell.classList.contains('taken')) {
+                            console.log('Invalid move: Cell already taken.');
+                            return;
+                        }
+                        if (!gameStarted) {
+                            console.log('Invalid move: Game not started.');
+                            return;
+                        }
                         const urlParams = new URLSearchParams(window.location.search);
                         const guestId = urlParams.get('guestId');
-                        if (cell.classList.contains('taken') || !gameStarted || currentTurn !== guestId) {
-                            console.log('Invalid move: Not your turn or game not started.');
+                        if (currentTurn !== guestId) {
+                            console.log('Invalid move: Not your turn.');
                             return;
                         }
                         socket.emit('move', { row: i, col: j, guestId });
@@ -302,6 +312,7 @@
                 }
             }
         };
+
 
         socket.on('player-info', (players) => {
             players.forEach((player) => {
@@ -359,7 +370,7 @@
             socket.on('move', ({ row, col, guestId, symbol }) => {
                 const cell = board.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
                 if (cell && !cell.classList.contains('taken')) {
-                    const playerSymbol = symbol === 1 ? "X" : "O"; // Map 1 : X, 2 :  O
+                    const playerSymbol = symbol === 1 ? (swapTurn ? "O" : "X") : (swapTurn ? "X" : "O");
                     cell.textContent = playerSymbol;
                     cell.classList.add('taken');
                 }

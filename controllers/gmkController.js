@@ -59,7 +59,8 @@ const setupGame = (socket, io) => {
             board: Array(19).fill().map(() => Array(19).fill(0)),
             turn: null,
             readyPlayers: 0,
-            resetVotes: {}
+            resetVotes: {},
+            swapTurn: false 
         };
     }
 
@@ -203,9 +204,17 @@ const handleReset = (room, io) => {
 
     console.log(`Resetting the game for room: ${room}`);
     rooms[room].board = Array(19).fill().map(() => Array(19).fill(0)); // Reset bàn cờ
-    rooms[room].turn = rooms[room].players[0].guestId; // Lượt đầu tiên thuộc về người chơi đầu tiên
-    rooms[room].resetVotes = {}; // Reset trạng thái đồng ý chơi lại
-    io.to(room).emit('reset'); // Gửi sự kiện reset tới tất cả người chơi
+
+    // sưap turn
+    rooms[room].swapTurn = !rooms[room].swapTurn; 
+    const firstPlayerIndex = rooms[room].swapTurn ? 1 : 0;
+    rooms[room].turn = rooms[room].players[firstPlayerIndex].guestId;
+
+    rooms[room].resetVotes = {}; 
+    io.to(room).emit('reset', {
+        turn: rooms[room].turn,
+        swapTurn: rooms[room].swapTurn,
+    }); 
 };
 
 
