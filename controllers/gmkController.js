@@ -1,6 +1,7 @@
-let rooms = {}; 
-let roomCounter = 0; 
 const Guest = require('../models/Guest');
+let rooms = {};
+let roomCounter = 0;
+let socketRoomMap = {}; // Map socket IDs to room names
 
 const findAvailableRoom = () => {
     for (const room in rooms) {
@@ -11,211 +12,125 @@ const findAvailableRoom = () => {
     return null;
 };
 
-const checkWin = (board, row, col, player) => {
-    return (
-        countConsecutive(board, row, col, player, 1, 0) >= 5 || // Kiểm tra ngang
-        countConsecutive(board, row, col, player, 0, 1) >= 5 || // Kiểm tra dọc
-        countConsecutive(board, row, col, player, 1, 1) >= 5 || // Kiểm tra chéo /
-        countConsecutive(board, row, col, player, 1, -1) >= 5   // Kiểm tra chéo \
-    );
-};
-
-const countConsecutive = (board, row, col, player, deltaRow, deltaCol) => {
-    let count = 1;
-    for (let i = 1; i < 5; i++) {
-        const newRow = row + i * deltaRow;
-        const newCol = col + i * deltaCol;
-        if (board[newRow]?.[newCol] === player) {
-            count++;
-        } else break;
-    }
-    for (let i = 1; i < 5; i++) {
-        const newRow = row - i * deltaRow;
-        const newCol = col - i * deltaCol;
-        if (board[newRow]?.[newCol] === player) {
-            count++;
-        } else break;
-    }
-    return count;
-};
-
 const setupGame = (socket, io) => {
     let room = findAvailableRoom();
-    let playerNumber;
-
     if (!room) {
         room = `room-${roomCounter++}`;
         rooms[room] = {
             players: [],
-            board: Array(15).fill().map(() => Array(15).fill(0)),
-            turn: 1,
-            resetVotes: {}
+            board: Array(19).fill().map(() => Array(19).fill(0)),
+            turn: null,
+            readyPlayers: 0,
         };
     }
 
+    socketRoomMap[socket.id] = room; // Map the socket to the room
     socket.join(room);
-    rooms[room].players.push(socket);
-    playerNumber = rooms[room].players.length;
 
-    socket.emit('player-assigned', playerNumber);
-
-    if (rooms[room].players.length === 2) {
-        io.to(room).emit('game-start');
-    }
-
-    socket.on('move', (data) => handleMove(data, socket, room, io));
-    socket.on('reset', () => handleReset(room, io));
-    socket.on('disconnect', () => handleDisconnect(socket, room));
-
-    socket.on('reset-request', () => {
-        const room = Object.keys(rooms).find(r => rooms[r].players.includes(socket));
-        
-        if (!room) return;
-    
-        const otherPlayerSocket = rooms[room].players.find(s => s !== socket);
-    
-        if (otherPlayerSocket) {
-            console.log(`Sending reset confirmation to ${otherPlayerSocket.id}`);
-            otherPlayerSocket.emit('reset-confirmation', socket.id);
+    socket.on('player-info', async ({ guestId }) => {
+        const guest = await Guest.findOne({ guestId });
+        if (guest) {
+            rooms[room].players.push({
+                id: socket.id,
+                guestId,
+                name: guest.guestName,
+                avatar: guest.avatar,
+                isReady: false,
+            });
+            io.to(room).emit('player-info', rooms[room].players);
         }
     });
-    
-    // socket.on('reset-accepted', () => {
-    //     const room = Object.keys(rooms).find(r => rooms[r].players.includes(socket));
-    
-    //     if (!room) return; // Đảm bảo room hợp lệ
-    
-    //     // Chỉ ghi lại vote nếu nó chưa tồn tại cho người chơi này
-    //     if (!rooms[room].resetVotes[socket.id]) {
-    //         rooms[room].resetVotes[socket.id] = true;
-    //         console.log(`Player ${socket.id} agreed to reset.`);
-    //     }
-    //     console.log('Current reset votes:', rooms[room].resetVotes);
-    
-    //     // Lấy ID của hai người chơi
-    //     const [player1, player2] = rooms[room].players.map(playerSocket => playerSocket.id);
-    
-    //     // Kiểm tra xem cả hai người chơi đã đồng ý hay chưa
-    //     if (rooms[room].resetVotes[player1] && rooms[room].resetVotes[player2]) {
-    //         console.log('Both players agreed to reset.');
-    //         handleReset(room, io);
-    //         // Reset lại votes cho lần chơi lại tiếp theo
-    //         rooms[room].resetVotes = {};
-    //     } else {
-    //         // Nếu chỉ có một người chơi đồng ý, yêu cầu xác nhận lại cho người còn lại
-    //         const otherPlayerSocket = rooms[room].players.find(s => s.id !== socket.id);
-    //         if (otherPlayerSocket && !rooms[room].resetVotes[otherPlayerSocket.id]) {
-    //             otherPlayerSocket.emit('reset-confirmation', socket.id);
-    //         }
-    //     }
-    // });
 
-    socket.on('reset-accepted', () => {
-        const room = Object.keys(rooms).find(r => rooms[r].players.includes(socket));
+    socket.on('player-ready', () => {
+        const player = rooms[room].players.find(p => p.id === socket.id);
+        if (player) {
+            player.isReady = true;
+            rooms[room].readyPlayers++;
     
-        if (!room) return;
+            io.to(room).emit('player-ready', {
+                guestId: player.guestId,
+                players: rooms[room].players,
+            });
     
-        if (!rooms[room].resetVotes[socket.id]) {
-            rooms[room].resetVotes[socket.id] = true;
-            console.log(`Player ${socket.id} agreed to reset.`);
-        }
-        console.log('Current reset votes:', rooms[room].resetVotes);
-    
-        const [player1, player2] = rooms[room].players.map(playerSocket => playerSocket.id);
-    
-        if (rooms[room].resetVotes[player1] && rooms[room].resetVotes[player2]) {
-            console.log('Both players agreed to reset.');
-            handleReset(room, io);
-            rooms[room].resetVotes = {};
-        } else {
-            const otherPlayerSocket = rooms[room].players.find(s => s.id !== socket.id);
-            if (otherPlayerSocket) {
-                otherPlayerSocket.emit('reset-confirmation', socket.id);
+            if (rooms[room].readyPlayers === 2) {
+                rooms[room].turn = rooms[room].players[0].guestId;
+                io.to(room).emit('game-start', { turn: rooms[room].turn });
             }
         }
     });
-    
 
-};
-
-const handleReset = (room, io) => {
-    console.log('Resetting the board for room:', room);
-    rooms[room].board = Array(15).fill().map(() => Array(15).fill(0));
-    rooms[room].turn = 1;
-    io.to(room).emit('reset');
-    rooms[room].resetVotes = {}; 
-};
-
-const handleMove = (data, socket, room, io) => {
-    const { row, col, player } = data;
-    const board = rooms[room].board;
-    const turn = rooms[room].turn;
-
-    // console.log(`Received move from player ${player}: (${row}, ${col})`);
-    // console.log(`Current turn: ${turn}`);
-
-    if (player !== turn) {
-        console.log(`It's not player ${player}'s turn. Ignoring move.`);
-        return;
-    }
-
-    if (board[row][col] !== 0) {
-        console.log(`Cell (${row}, ${col}) is already taken. Ignoring move.`);
-        return;
-    }
-
-    board[row][col] = player;
-    io.to(room).emit('move', { row, col, player });
-
-    if (checkWin(board, row, col, player)) {
-        io.to(room).emit('win', player);
-        console.log(`Player ${player} wins!`);
-
-        // Save win/loss result in the database for both players
-        const winnerGuest = rooms[room].players.find(s => s.id === player);
-        const loserGuest = rooms[room].players.find(s => s.id !== player);
-
-        if (winnerGuest) {
-            updateGameHistory(winnerGuest, 'win', room);
-        }
-        if (loserGuest) {
-            updateGameHistory(loserGuest, 'lose', room);
-        }
-        return;
-    }
-
-    rooms[room].turn = turn === 1 ? 2 : 1;
-    console.log(`Turn changed to player ${rooms[room].turn}`);
-    io.to(room).emit('turn-changed', rooms[room].turn);
-};
-
-const updateGameHistory = async (guestSocket, result, roomId) => {
-    const guestId = guestSocket.handshake.query.guestId;
-    try {
-        const guest = await Guest.findOne({ guestId });
-        if (!guest) {
-            console.log('Guest not found for updating history');
+    socket.on('move', ({ row, col, guestId }) => {
+        const room = socketRoomMap[socket.id]; // Retrieve room from mapping
+        if (!room || !rooms[room]) {
+            console.log(`Invalid move: Room not found for socket ${socket.id}`);
             return;
         }
+    
+        const roomData = rooms[room];
+        const board = roomData.board;
+    
+        // Validate turn
+        if (guestId !== roomData.turn) {
+            console.log(`Invalid move: Not ${guestId}'s turn`);
+            io.to(socket.id).emit('invalid-move', { message: "Not your turn." });
+            return;
+        }
+    
+        // Check if the cell is already taken
+        if (board[row][col] !== 0) {
+            console.log(`Invalid move: Cell (${row}, ${col}) is already taken`);
+            io.to(socket.id).emit('invalid-move', { message: "Cell already taken." });
+            return;
+        }
+    
+        // Update the board with the move
+        const player = roomData.players.find(p => p.guestId === guestId);
+        const playerIndex = roomData.players.indexOf(player);
+        board[row][col] = playerIndex + 1;
+    
+        // Emit the move to all players
+        io.to(room).emit('move', { row, col, guestId });
+    
+        // Check for a win
+        if (checkWin(board, row, col, playerIndex + 1)) {
+            io.to(room).emit('win', guestId);
+            console.log(`Player ${guestId} wins!`);
+            return;
+        }
+    
+        // Alternate the turn
+        const nextPlayerIndex = (playerIndex + 1) % roomData.players.length;
+        roomData.turn = roomData.players[nextPlayerIndex].guestId;
+    
+        // Notify players of the turn change
+        io.to(room).emit('turn-changed', roomData.turn);
+    });
+    
 
-        guest.gameHistory.push({ roomId, result, playedAt: new Date() });
+    socket.on('chat-message', ({ guestId, message }) => {
+        const player = rooms[room].players.find(p => p.guestId === guestId);
+        if (player) {
+            io.to(room).emit('chat-message', { player: player.name, message });
+        }
+    });
 
-        const winCount = guest.gameHistory.filter(game => game.result === 'win').length;
-        guest.winRate = (winCount / guest.gameHistory.length) * 100;
+    socket.on('disconnect', () => {
+        const room = socketRoomMap[socket.id];
+        if (room && rooms[room]) {
+            console.log(`Player ${socket.id} disconnected from room ${room}`);
+            rooms[room].players = rooms[room].players.filter(p => p.id !== socket.id);
 
-        await guest.save();
-        console.log(`Guest history updated for ${guestId} with result: ${result}`);
-    } catch (error) {
-        console.error('Error updating guest history:', error);
-    }
+            if (rooms[room].players.length === 0) {
+                delete rooms[room];
+            } else {
+                io.to(room).emit('player-disconnected', { message: 'Đối thủ đã ngắt kết nối.' });
+            }
+
+            delete socketRoomMap[socket.id];
+        } else {
+            console.log(`Socket ${socket.id} was not in any room.`);
+        }
+    });
 };
 
-const handleDisconnect = (socket, room) => {
-    console.log('A user disconnected:', socket.id);
-    rooms[room].players = rooms[room].players.filter((s) => s !== socket);
-    if (rooms[room].players.length === 0) {
-        delete rooms[room];
-    }
-};
-
-module.exports = { setupGame, findAvailableRoom, checkWin };
+module.exports = { setupGame };
