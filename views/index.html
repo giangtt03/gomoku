@@ -1,122 +1,63 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gomoku Realtime</title>
     <script src="/socket.io/socket.io.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
             height: 100vh;
-            margin: 0;
             background-color: #322f2f;
             color: white;
             font-family: Arial, sans-serif;
         }
 
-        #player-info {
-            display: flex;
-            justify-content: space-between;
-            width: 100%;
-            padding: 10px;
-            background-color: #444;
-        }
-
-        .player {
-            text-align: center;
-        }
-
-        .ready-btn {
-            margin-top: 10px;
-            padding: 5px 10px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        .ready-btn.disabled {
-            background-color: #888;
-            cursor: not-allowed;
-        }
-
         #board {
             display: grid;
-            grid-template-columns: repeat(19, 40px);
-            gap: 2px;
-            margin-top: 20px;
-            position: relative;
+            grid-template-columns: repeat(19, 1fr);
+            gap: 1px;
+            width: 100%;
+            max-width: 800px;
+            margin: 20px auto;
+            background-color: #b19b9b;
+            border: 2px solid #828282;
+            box-shadow: 0 0 10px rgba(156, 152, 152, 0.5);
         }
 
         .cell {
-            width: 40px;
-            height: 40px;
+            width: 100%;
+            aspect-ratio: 1;
             background-color: #888;
             display: flex;
             justify-content: center;
             align-items: center;
             font-size: 24px;
             cursor: pointer;
-            border-radius: 4px;
+            box-shadow: inset 0 0 2px rgba(90, 88, 88, 0.5);
+            border: 1px solid #c0b9b9;
+        }
+
+        .cell:hover {
+            background-color: #aaa;
         }
 
         .cell.taken {
+            background-color: #718f8f;
             cursor: not-allowed;
         }
 
         #game-status {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 4px;
-            font-size: 24px;
+            visibility: hidden;
             display: none;
         }
 
-        #chat-section {
-            display: flex;
-            flex-direction: column;
-            margin-top: 20px;
-            width: 40%;
-        }
 
         #chat-messages {
             height: 200px;
-            background-color: #555;
             overflow-y: auto;
-            padding: 10px;
-            border-radius: 4px;
-        }
-
-        #chat-input {
-            display: flex;
-            margin-top: 10px;
-        }
-
-        #chat-input input {
-            flex-grow: 1;
-            padding: 10px;
-            border-radius: 4px;
-            border: none;
-        }
-
-        #chat-input button {
-            margin-left: 10px;
-            padding: 10px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
         }
 
         #reset-confirmation {
@@ -132,61 +73,44 @@
             text-align: center;
             z-index: 1000;
         }
-
-        #reset-confirmation button {
-            margin: 10px;
-            padding: 10px 20px;
-            font-size: 16px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-
-        #reset-confirmation button#yes-play-again {
-            background-color: #4CAF50;
-            color: white;
-        }
-
-        #reset-confirmation button#no-play-again {
-            background-color: #f44336;
-            color: white;
-        }
     </style>
 </head>
-<body>
-    <h1>Gomoku Realtime</h1>
-    <div id="player-info">
-        <div id="player1" class="player">
-            <img id="player1-avatar" src="" alt="Player 1" width="50" height="50">
-            <p id="player1-name">Player 1</p>
+
+<body class="d-flex flex-column align-items-center justify-content-center">
+    <div class="container text-center">
+        <h1 class="mb-4">Gomoku Realtime</h1>
+
+        <div id="player-info" class="row justify-content-between bg-dark p-3 rounded">
+            <div id="player1" class="col text-center">
+                <img id="player1-avatar" src="" alt="Player 1" class="img-thumbnail" width="50" height="50">
+                <p id="player1-name">Player 1</p>
+            </div>
+            <div id="player2" class="col text-center">
+                <img id="player2-avatar" src="" alt="Player 2" class="img-thumbnail" width="50" height="50">
+                <p id="player2-name">Player 2</p>
+            </div>
         </div>
-        <div id="player2" class="player">
-            <img id="player2-avatar" src="" alt="Player 2" width="50" height="50">
-            <p id="player2-name">Player 2</p>
+
+        <button id="ready-btn" class="btn btn-success mt-3">Sẵn sàng</button>
+
+        <div id="board" class="my-4"></div>
+
+        <div id="chat-section" class="w-50">
+            <div id="chat-messages" class="bg-secondary p-3 rounded mb-3 text-start"></div>
+            <div id="chat-input" class="input-group">
+                <input type="text" id="chat-text" class="form-control" placeholder="Nhập nội dung chat...">
+                <button id="send-chat" class="btn btn-success">Gửi</button>
+            </div>
         </div>
-    </div>
-    <div>
-        <button id="ready-btn" class="ready-btn">Sẵn sàng</button>
     </div>
 
-
-    <div id="board">
-        <div id="game-status">Bắt đầu!</div>
-    </div>
-
-    <div id="chat-section">
-        <div id="chat-messages"></div>
-        <div id="chat-input">
-            <input type="text" id="chat-text" placeholder="Nhập nội dung chat...">
-            <button id="send-chat">Gửi</button>
-        </div>
-    </div>
     <div id="reset-confirmation">
-        <p id="winner-message">Winner: </p> 
+        <p id="winner-message">Winner: </p>
         <p>Res-G: <span id="countdown-timer">10</span>s</p>
         <button id="yes-play-again">Yes</button>
         <button id="no-play-again">No</button>
     </div>
+        <div id="game-status">Bắt đầu</div>
 
     <script>
         const socket = io();
@@ -203,7 +127,7 @@
         let currentTurn = 1;
         let gameStarted = false;
         let countdown;
-        let swapTurn = false; 
+        let swapTurn = false;
         let players = [];
 
         const startCountdown = () => {
@@ -231,18 +155,14 @@
         });
 
         socket.on('win', (winner) => {
-            // Tìm người thắng từ danh sách `players`
             const winningPlayer = players.find(player => player.guestId === winner);
-            const winnerName = winningPlayer ? winningPlayer.name : winner; // Lấy `name` nếu tìm thấy, nếu không, dùng `guestId`
-
-            // Hiển thị thông báo người thắng
-            winnerMessage.textContent = `Winner: ${winnerName}`;
+            const winnerName = winningPlayer ? winningPlayer.name : winner;
+            // winnerMessage.textContent = `Winner: ${winnerName}`;
             resetConfirmation.style.display = 'block';
-            gameStatus.textContent = `Người chơi ${winnerName} thắng!`;
+            // gameStatus.textContent = `Người chơi ${winnerName} thắng!`;
             gameStatus.style.display = 'block';
-
-            gameStarted = false; // Dừng trò chơi
-            startCountdown(); // Bắt đầu đếm ngược
+            gameStarted = false;
+            startCountdown();
         });
 
 
@@ -256,7 +176,7 @@
             const cells = document.querySelectorAll('.cell');
             cells.forEach(cell => {
                 cell.textContent = '';
-                cell.classList.remove('taken'); 
+                cell.classList.remove('taken');
             });
 
             gameStarted = true;
@@ -264,8 +184,8 @@
 
             const playerSymbol = swapTurn ? ['O', 'X'] : ['X', 'O'];
             gameStatus.style.display = 'block';
-            gameStatus.textContent = `Game restarted! Player ${turn === socket.id ? 'you' : 'opponent'} turn (${playerSymbol[0]})`;
-            setTimeout(() => (gameStatus.style.display = 'none'), 2000);
+            // gameStatus.textContent = `Game restarted! Player ${turn === socket.id ? 'you' : 'opponent'} turn (${playerSymbol[0]})`;
+            // setTimeout(() => (gameStatus.style.display = 'none'), 2000);
         });
 
         const fetchGuestData = async (guestId) => {
@@ -343,7 +263,7 @@
         // });
 
         socket.on('player-info', (updatedPlayers) => {
-            players = updatedPlayers; 
+            players = updatedPlayers;
 
             players.forEach((player, index) => {
                 const playerElement = document.getElementById(`player${index + 1}`);
@@ -353,53 +273,52 @@
                 }
             });
 
-            console.log("Updated players:", players); 
+            console.log("Updated players:", players);
         });
 
 
         const readyButton = document.getElementById('ready-btn');
-            readyButton.addEventListener('click', () => {
-                readyButton.disabled = true;
-                socket.emit('player-ready');
-            });
+        readyButton.addEventListener('click', () => {
+            readyButton.disabled = true;
+            socket.emit('player-ready');
+        });
 
-            socket.on('player-ready', ({ guestId, players }) => {
-                console.log(`Guest ${guestId} is ready.`);
+        socket.on('player-ready', ({ guestId, players }) => {
+            console.log(`Guest ${guestId} is ready.`);
 
-                players.forEach(player => {
-                    if (player.guestId === guestId) {
-                        console.log(`${player.name} is ready`);
-                    }
-                });
-
-                if (players.every(player => player.isReady)) {
-                    gameStarted = true;
-                    console.log('Game is ready to start.');
+            players.forEach(player => {
+                if (player.guestId === guestId) {
+                    console.log(`${player.name} is ready`);
                 }
             });
 
-            socket.on('game-start', ({ turn }) => {
+            if (players.every(player => player.isReady)) {
                 gameStarted = true;
-                currentTurn = turn; 
-                console.log(`Game started. Turn: ${turn}`);
-                gameStatus.style.display = 'block';
-                gameStatus.textContent = `Game bắt đầu! Lượt của người chơi: ${turn}`;
-                setTimeout(() => (gameStatus.style.display = 'none'), 2000);
-            });
+                console.log('Game is ready to start.');
+            }
+        });
 
-            socket.on('turn-changed', (newTurn) => {
-                currentTurn = newTurn;
-                console.log(`Turn changed to: ${newTurn}`);
-            });
+        socket.on('game-start', ({ turn }) => {
+            gameStarted = true;
+            currentTurn = turn;
+            console.log(`Game started. Turn: ${turn}`);
+            gameStatus.style.display = 'block';
+            // setTimeout(() => (gameStatus.style.display = 'none'), 2000);
+        });
 
-            socket.on('move', ({ row, col, guestId, symbol }) => {
-                const cell = board.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
-                if (cell && !cell.classList.contains('taken')) {
-                    const playerSymbol = symbol === 1 ? (swapTurn ? "O" : "X") : (swapTurn ? "X" : "O");
-                    cell.textContent = playerSymbol;
-                    cell.classList.add('taken');
-                }
-            });
+        socket.on('turn-changed', (newTurn) => {
+            currentTurn = newTurn;
+            console.log(`Turn changed to: ${newTurn}`);
+        });
+
+        socket.on('move', ({ row, col, guestId, symbol }) => {
+            const cell = board.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+            if (cell && !cell.classList.contains('taken')) {
+                const playerSymbol = symbol === 1 ? (swapTurn ? "O" : "X") : (swapTurn ? "X" : "O");
+                cell.textContent = playerSymbol;
+                cell.classList.add('taken');
+            }
+        });
 
         sendChat.addEventListener('click', () => {
             const message = chatText.value.trim();
@@ -420,5 +339,7 @@
         createBoard();
         setupPlayerInfo();
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
+
 </html>
