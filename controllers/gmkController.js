@@ -12,6 +12,44 @@ const findAvailableRoom = () => {
     return null;
 };
 
+const checkWin = (board, row, col, player) => {
+    const directions = [
+        { dr: 0, dc: 1 },  // Horizontal
+        { dr: 1, dc: 0 },  // Vertical
+        { dr: 1, dc: 1 },  // Diagonal 
+        { dr: 1, dc: -1 }  // Diagonal 
+    ];
+
+    for (const { dr, dc } of directions) {
+        let count = 1;
+
+        for (let i = 1; i < 5; i++) {
+            const r = row + dr * i;
+            const c = col + dc * i;
+            if (r >= 0 && r < 19 && c >= 0 && c < 19 && board[r][c] === player) {
+                count++;
+            } else {
+                break;
+            }
+        }
+
+        for (let i = 1; i < 5; i++) {
+            const r = row - dr * i;
+            const c = col - dc * i;
+            if (r >= 0 && r < 19 && c >= 0 && c < 19 && board[r][c] === player) {
+                count++;
+            } else {
+                break;
+            }
+        }
+        if (count >= 5) {
+            return true;
+        }
+    }
+    return false; 
+};
+
+
 const setupGame = (socket, io) => {
     let room = findAvailableRoom();
     if (!room) {
@@ -75,7 +113,7 @@ const setupGame = (socket, io) => {
             io.to(socket.id).emit('invalid-move', { message: "Not your turn." });
             return;
         }
-    
+
         // Check if the cell is already taken
         if (board[row][col] !== 0) {
             console.log(`Invalid move: Cell (${row}, ${col}) is already taken`);
@@ -88,8 +126,8 @@ const setupGame = (socket, io) => {
         const playerIndex = roomData.players.indexOf(player);
         board[row][col] = playerIndex + 1;
     
-        // Emit the move to all players
-        io.to(room).emit('move', { row, col, guestId });
+        const playerSymbol = playerIndex + 1; 
+        io.to(room).emit('move', { row, col, guestId, symbol: playerSymbol });
     
         // Check for a win
         if (checkWin(board, row, col, playerIndex + 1)) {
@@ -101,8 +139,8 @@ const setupGame = (socket, io) => {
         // Alternate the turn
         const nextPlayerIndex = (playerIndex + 1) % roomData.players.length;
         roomData.turn = roomData.players[nextPlayerIndex].guestId;
+        console.log(`Player ${guestId} moved. Next turn: ${roomData.turn}`);
     
-        // Notify players of the turn change
         io.to(room).emit('turn-changed', roomData.turn);
     });
     

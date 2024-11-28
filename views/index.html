@@ -235,7 +235,6 @@
             socket.on('player-ready', ({ guestId, players }) => {
                 console.log(`Guest ${guestId} is ready.`);
 
-                // Update UI to reflect readiness (optional)
                 players.forEach(player => {
                     if (player.guestId === guestId) {
                         console.log(`${player.name} is ready`);
@@ -250,7 +249,7 @@
 
             socket.on('game-start', ({ turn }) => {
                 gameStarted = true;
-                currentTurn = turn; // Update `currentTurn` with the `guestId` of the starting player
+                currentTurn = turn; 
                 console.log(`Game started. Turn: ${turn}`);
                 gameStatus.style.display = 'block';
                 gameStatus.textContent = `Game bắt đầu! Lượt của người chơi: ${turn}`;
@@ -258,17 +257,19 @@
             });
 
             socket.on('turn-changed', (newTurn) => {
-                currentTurn = newTurn; // Update `currentTurn` with the `guestId` of the next player
+                currentTurn = newTurn;
                 console.log(`Turn changed to: ${newTurn}`);
             });
 
-        socket.on('move', ({ row, col, guestId }) => {
-            const cell = board.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
-            if (cell && !cell.classList.contains('taken')) {
-                cell.textContent = guestId === currentTurn ? 'X' : 'O';
-                cell.classList.add('taken');
-            }
-        });
+            socket.on('move', ({ row, col, guestId, symbol }) => {
+                const cell = board.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+                if (cell && !cell.classList.contains('taken')) {
+                    const playerSymbol = symbol === 1 ? "X" : "O"; // Map 1 : X, 2 :  O
+                    cell.textContent = playerSymbol;
+                    cell.classList.add('taken');
+                }
+            });
+
 
         socket.on('win', (winner) => {
             gameStatus.textContent = `Người chơi ${winner} thắng!`;
