@@ -1,7 +1,7 @@
 const Guest = require('../models/Guest');
 let rooms = {};
 let roomCounter = 0;
-let socketRoomMap = {}; // Map socket IDs to room names
+let socketRoomMap = {}; 
 
 const findAvailableRoom = () => {
     for (const room in rooms) {
@@ -59,6 +59,7 @@ const setupGame = (socket, io) => {
             board: Array(19).fill().map(() => Array(19).fill(0)),
             turn: null,
             readyPlayers: 0,
+            resetVotes: {}
         };
     }
 
@@ -143,8 +144,34 @@ const setupGame = (socket, io) => {
     
         io.to(room).emit('turn-changed', roomData.turn);
     });
-    
 
+    socket.on('reset-request', () => {
+        const room = socketRoomMap[socket.id];
+        if (!room || !rooms[room]) return;
+    
+        const playerId = socket.id;
+        // Khởi tạo resetVotes nếu chưa có
+        if (!rooms[room].resetVotes) {
+            rooms[room].resetVotes = {};
+        }
+    
+        if (!rooms[room].resetVotes[playerId]) {
+            rooms[room].resetVotes[playerId] = true;
+        }
+    
+        const playerIds = rooms[room].players.map(player => player.id);
+        if (playerIds.every(id => rooms[room].resetVotes[id])) {
+            handleReset(room, io);
+            rooms[room].resetVotes = {}; // Reset lại votes sau khi chơi lại
+        } else {
+            const otherPlayer = playerIds.find(id => id !== playerId);
+            if (otherPlayer) {
+                io.to(otherPlayer).emit('reset-confirmation', { from: playerId });
+            }
+        }
+    });
+    
+    
     socket.on('chat-message', ({ guestId, message }) => {
         const player = rooms[room].players.find(p => p.guestId === guestId);
         if (player) {
@@ -170,5 +197,17 @@ const setupGame = (socket, io) => {
         }
     });
 };
+
+const handleReset = (room, io) => {
+    if (!rooms[room]) return;
+
+    console.log(`Resetting the game for room: ${room}`);
+    rooms[room].board = Array(19).fill().map(() => Array(19).fill(0)); // Reset bàn cờ
+    rooms[room].turn = rooms[room].players[0].guestId; // Lượt đầu tiên thuộc về người chơi đầu tiên
+    rooms[room].resetVotes = {}; // Reset trạng thái đồng ý chơi lại
+    io.to(room).emit('reset'); // Gửi sự kiện reset tới tất cả người chơi
+};
+
+
 
 module.exports = { setupGame };

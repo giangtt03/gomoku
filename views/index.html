@@ -118,6 +118,39 @@
             border-radius: 4px;
             cursor: pointer;
         }
+
+        #reset-confirmation {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #444;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 1000;
+        }
+
+        #reset-confirmation button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #reset-confirmation button#yes-play-again {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        #reset-confirmation button#no-play-again {
+            background-color: #f44336;
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -148,6 +181,12 @@
             <button id="send-chat">Gửi</button>
         </div>
     </div>
+    <div id="reset-confirmation">
+        <p id="winner-message"></p>
+        <p>Time remaining: <span id="countdown-timer">10</span>s</p>
+        <button id="yes-play-again">Yes</button>
+        <button id="no-play-again">No</button>
+    </div>
 
     <script>
         const socket = io();
@@ -156,10 +195,66 @@
         const chatText = document.getElementById('chat-text');
         const sendChat = document.getElementById('send-chat');
         const gameStatus = document.getElementById('game-status');
+        const resetConfirmation = document.getElementById('reset-confirmation');
+        const winnerMessage = document.getElementById('winner-message');
+        const countdownTimer = document.getElementById('countdown-timer');
 
         let playerNumber = null;
         let currentTurn = 1;
         let gameStarted = false;
+        let countdown;
+
+        const startCountdown = () => {
+            let time = 10;
+            countdownTimer.textContent = time;
+            countdown = setInterval(() => {
+                time--;
+                countdownTimer.textContent = time;
+                if (time <= 0) {
+                    clearInterval(countdown);
+                    resetConfirmation.style.display = 'none';
+                }
+            }, 1000);
+        };
+
+        document.getElementById('yes-play-again').addEventListener('click', () => {
+            socket.emit('reset-request');
+            clearInterval(countdown);
+            resetConfirmation.style.display = 'none';
+        });
+
+        document.getElementById('no-play-again').addEventListener('click', () => {
+            clearInterval(countdown);
+            resetConfirmation.style.display = 'none';
+        });
+
+        socket.on('win', (winner) => {
+            gameStatus.textContent = `Người chơi ${winner} thắng!`;
+            gameStatus.style.display = 'block';
+            gameStarted = false;
+            resetConfirmation.style.display = 'block';
+            startCountdown();
+        });
+
+        socket.on('reset', () => {
+            resetConfirmation.style.display = 'none';
+            clearInterval(countdown);
+
+            // Reset lại bàn cờ
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach(cell => {
+                cell.textContent = ''; // Xóa nội dung của ô
+                cell.classList.remove('taken'); // Gỡ bỏ trạng thái "đã được đánh dấu"
+            });
+
+            // Reset lại trạng thái trò chơi
+            gameStarted = true;
+            currentTurn = 1; // Đặt lại lượt đầu tiên
+
+            gameStatus.style.display = 'block';
+            gameStatus.textContent = 'Game restarted! Player 1 turn.';
+        });
+
 
         const fetchGuestData = async (guestId) => {
             try {
@@ -269,13 +364,6 @@
                     cell.classList.add('taken');
                 }
             });
-
-
-        socket.on('win', (winner) => {
-            gameStatus.textContent = `Người chơi ${winner} thắng!`;
-            gameStatus.style.display = 'block';
-            gameStarted = false;
-        });
 
         sendChat.addEventListener('click', () => {
             const message = chatText.value.trim();
