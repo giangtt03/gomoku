@@ -256,6 +256,38 @@
             border: none;
             margin-bottom: 5px;
         }
+
+        /* Định dạng cho thông báo bị kick */
+        #kick-notification {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #11857d, #6d73c0);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 18px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            display: none;
+            z-index: 9999;
+        }
+
+        /* #close-notification {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: transparent;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        #close-notification:hover {
+            color: #FFD700;
+        } */
     </style>
 </head>
 
@@ -273,6 +305,12 @@
                 <p id="player2-name"></p>
                 <p id="status-text-player2">Chưa sẵn sàng</p>
             </div>
+            <div id="players-content" class="d-none">
+                <ul id="players-list" class="list-group">
+                    <!-- Sẽ được cập nhật động -->
+                </ul>
+            </div>
+
         </div>
         <button id="ready-btn" class="btn btn btn-secondary mt-3">Sẵn sàng</button>
         <div id="game-container" class="d-grid">
@@ -325,6 +363,13 @@
         <button id="no-play-again">No</button>
     </div>
     <div id="game-status">Bắt đầu</div>
+
+    <!-- Thông báo khi bị kick -->
+    <div id="kick-notification" class="notification" style="display: none;">
+        <p id="kick-message"></p>
+        <!-- <button id="close-notification" class="btn btn-danger btn-sm">Đóng</button> -->
+    </div>
+
 
     <script>
         const socket = io();
@@ -448,7 +493,6 @@
         socket.on('reset', ({ turn, swapTurn: newSwapTurn }) => {
             resetConfirmation.style.display = 'none';
             clearInterval(countdown);
-
             swapTurn = newSwapTurn;
 
             const cells = document.querySelectorAll('.cell');
@@ -522,21 +566,98 @@
         };
         socket.on('player-info', (updatedPlayers) => {
             players = updatedPlayers;
-            players.forEach((player, index) => {
-                const playerElement = document.getElementById(`player${index + 1}`);
-                const statusTextId = index === 0 ? 'status-text-player1' : 'status-text-player2';
-                if (playerElement) {
-                    playerElement.querySelector('img').src = player.avatar || '/default-avatar.jpg';
-                    playerElement.querySelector('p').textContent = player.name || `Player ${index + 1}`;
-                    document.getElementById(statusTextId).textContent = player.isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng';
+            const player2 = players[1];
+            const player2Element = document.getElementById('player2');
+
+            if (player2) {
+                player2Element.querySelector('img').src = player2.avatar || '';
+                player2Element.querySelector('p').textContent = player2.name || 'Player 2';
+
+                const isOwner = players[0].id === socket.id;
+                const existingKickButton = player2Element.querySelector('.kick-btn');
+
+                if (isOwner && !existingKickButton) {
+                    const kickButton = document.createElement('button');
+                    kickButton.classList.add('btn', 'btn-danger', 'kick-btn', 'btn-sm', 'mt-2');
+                    kickButton.textContent = 'Kick';
+
+                    kickButton.addEventListener('click', () => {
+                        socket.emit('kick-player', { guestId: player2.guestId });
+                    });
+
+                    player2Element.appendChild(kickButton);
                 }
-            });
-            // console.log("Updated players:", players);
+
+                document.getElementById('status-text-player2').textContent = 'Chưa sẵn sàng';
+            }
+            const player1 = players[0];
+            if (player1) {
+                document.getElementById('player1-avatar').src = player1.avatar || '';
+                document.getElementById('player1-name').textContent = player1.name || 'Player 1';
+                document.getElementById('status-text-player1').textContent = 'Chưa sẵn sàng';
+            }
         });
 
+        socket.on('kicked', (data) => {
+            console.log('Đã nhận được thông báo kick:', data);
 
-        socket.on('update-ready-status', (data) => {
-            console.log('Update Ready Status:', data);
+            const message = data.message;
+            const notificationElement = document.getElementById('kick-notification');
+            const messageElement = document.getElementById('kick-message');
+
+            messageElement.textContent = message;
+            notificationElement.style.display = 'block';
+
+            setTimeout(() => {
+                notificationElement.style.display = 'none';
+                window.location.href = '/';
+            }, 1500);
+
+        });
+
+        // document.getElementById('close-notification').addEventListener('click', () => {
+        //     document.getElementById('kick-notification').style.display = 'none';
+        // });
+
+        socket.on('player-kicked', ({ guestId }) => {
+            players = players.filter(player => player.guestId !== guestId);
+
+            const player2Element = document.getElementById('player2');
+            const player1Element = document.getElementById('player1');
+
+            if (players.length === 1) {
+                player2Element.querySelector('img').src = '';
+                player2Element.querySelector('p').textContent = '';
+                document.getElementById('status-text-player2').textContent = 'Chưa có người chơi';
+
+                const kickButton = player2Element.querySelector('.kick-btn');
+                if (kickButton) kickButton.remove();
+            }
+
+            if (players.length === 1 && players[0].guestId === socket.id) {
+                document.getElementById('status-text-player1').textContent = 'Chưa có người chơi';
+            }
+
+            const playersList = document.getElementById('players-list');
+            if (playersList) {
+                playersList.innerHTML = '';
+                players.forEach((player, index) => {
+                    const listItem = document.createElement('li');
+                    listItem.classList.add('list-group-item', 'd-flex', 'justify-content-between', 'align-items-center');
+                    listItem.textContent = `${player.name || `Player ${index + 1}`} (${player.guestId})`;
+                    playersList.appendChild(listItem);
+                });
+            }
+        });
+
+        socket.on('update-ready-status', ({ guestId, isReady }) => {
+            const playerIndex = players.findIndex(player => player.guestId === guestId);
+
+            if (playerIndex === 0) {
+                document.getElementById('status-text-player1').textContent = isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng';
+            } else if (playerIndex === 1) {
+                document.getElementById('status-text-player2').textContent = isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng';
+            }
         });
 
         socket.on('reset-ready-status', () => {
@@ -553,12 +674,11 @@
 
             if (guestId) {
                 socket.emit('player-ready', { guestId });
-                readyButton.disabled = true; // Vô hiệu hóa nút
+                readyButton.disabled = true;
             }
         });
 
         socket.on('update-ready-status', ({ guestId, isReady }) => {
-            // Tìm người chơi dựa trên guestId
             const playerIndex = players.findIndex(player => player.guestId === guestId);
 
             if (playerIndex === 0) {
@@ -571,7 +691,7 @@
         socket.on('reset-ready-status', () => {
             document.getElementById('status-text-player1').textContent = 'Chưa sẵn sàng';
             document.getElementById('status-text-player2').textContent = 'Chưa sẵn sàng';
-            document.getElementById('ready-btn').disabled = false; // Kích hoạt lại nút sẵn sàng
+            document.getElementById('ready-btn').disabled = false;
         });
 
         socket.on('player-ready', ({ guestId, players }) => {
@@ -629,7 +749,6 @@
                 chatText.value = '';
             }
         }
-
 
         socket.on('chat-message', ({ player, message }) => {
             chatMessages.innerHTML += `<p><strong>${player}:</strong> ${message}</p>`;

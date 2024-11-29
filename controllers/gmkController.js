@@ -69,6 +69,10 @@ const setupGame = (socket, io) => {
 
     socket.on('player-info', async ({ guestId }) => {
         const guest = await Guest.findOne({ guestId });
+        if (!rooms[room]) {
+            console.error(`Phòng ${room} không tồn tại!`);
+            return;
+        }
         if (guest) {
             rooms[room].players.push({
                 id: socket.id,
@@ -80,6 +84,27 @@ const setupGame = (socket, io) => {
             io.to(room).emit('player-info', rooms[room].players);
         }
     });
+
+    socket.on('kick-player', ({ guestId }) => {
+        const room = socketRoomMap[socket.id];
+        if (!room || !rooms[room]) return;
+    
+        const roomData = rooms[room];
+        const kicker = roomData.players.find(p => p.id === socket.id); 
+        const target = roomData.players.find(p => p.guestId === guestId); 
+    
+        if (kicker && roomData.players[0].id === socket.id && target) {
+            console.log(`Kicker: ${kicker.name} đang đuổi target: ${target.name}`);
+            roomData.players = roomData.players.filter(p => p.guestId !== guestId);
+    
+            io.to(target.id).emit('kicked', { message: 'Bạn đã bị đuổi khỏi phòng😭!' });
+            io.sockets.sockets.get(target.id)?.leave(room);
+    
+            io.to(room).emit('player-kicked', { guestId });
+        }
+    });
+    
+    
 
     const updatePlayerReadyStatus = (room, guestId, isReady, io) => {
         if (!rooms[room]) return;
@@ -116,18 +141,15 @@ const setupGame = (socket, io) => {
         const room = socketRoomMap[socket.id];
         if (!room || !rooms[room]) return;
 
-        // Đánh dấu người chơi này đã bấm "Yes"
         rooms[room].resetVotes[socket.id] = true;
 
-        // Kiểm tra nếu tất cả người chơi đều đồng ý
         const allPlayers = rooms[room].players.map(player => player.id);
         const allAgreed = allPlayers.every(playerId => rooms[room].resetVotes[playerId]);
 
         if (allAgreed) {
-            handleReset(room, io); // Bắt đầu lại ván chơi
-            rooms[room].resetVotes = {}; // Reset trạng thái phiếu bầu
+            handleReset(room, io); 
+            rooms[room].resetVotes = {}; 
         } else {
-            // Thông báo cho người chơi còn lại
             io.to(room).emit('reset-waiting', { playerId: socket.id });
         }
     });
@@ -142,7 +164,6 @@ const setupGame = (socket, io) => {
         const roomData = rooms[room];
         const board = roomData.board;
 
-        // Validate turn
         if (guestId !== roomData.turn) {
             // console.log(`Invalid move: Not ${guestId}'s turn`);
             io.to(socket.id).emit('invalid-move', { message: "Not your turn." });
@@ -164,7 +185,6 @@ const setupGame = (socket, io) => {
         const playerSymbol = playerIndex + 1;
         io.to(room).emit('move', { row, col, guestId, symbol: playerSymbol });
 
-        // Check for a win
         if (checkWin(board, row, col, playerIndex + 1)) {
             io.to(room).emit('win', guestId);
             // console.log(`Player ${guestId} wins!`);
