@@ -243,6 +243,19 @@
         .d-none {
             display: none;
         }
+
+        #players-content {
+            max-height: 500px;
+            overflow-y: auto;
+            background-color: #444;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        #players-list .list-group-item {
+            border: none;
+            margin-bottom: 5px;
+        }
     </style>
 </head>
 
@@ -266,6 +279,7 @@
             <div id="chat-section">
                 <div id="chat-navigation" class="d-flex justify-content-between mb-3">
                     <button id="btn-chat" class="btn btn-secondary">Chat</button>
+                    <button id="btn-players" class="btn btn-secondary">Players</button>
                     <button id="btn-settings" class="btn btn-secondary">Settings</button>
                 </div>
                 <div id="chat-content">
@@ -295,6 +309,11 @@
                 <div id="settings-content" class="d-none">
                     <p>Chức năng đang được phát triển.</p>
                 </div>
+                <div id="players-content" class="d-none">
+                    <ul id="players-list" class="list-group">
+                        <p>List user</p>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>
@@ -320,11 +339,20 @@
         document.getElementById('btn-chat').addEventListener('click', () => {
             document.getElementById('chat-content').classList.remove('d-none');
             document.getElementById('settings-content').classList.add('d-none');
+            document.getElementById('players-content').classList.add('d-none');
+
         });
 
         document.getElementById('btn-settings').addEventListener('click', () => {
             document.getElementById('chat-content').classList.add('d-none');
             document.getElementById('settings-content').classList.remove('d-none');
+            document.getElementById('players-content').classList.add('d-none');
+        });
+
+        document.getElementById('btn-players').addEventListener('click', () => {
+            document.getElementById('chat-content').classList.add('d-none');
+            document.getElementById('settings-content').classList.add('d-none');
+            document.getElementById('players-content').classList.remove('d-none');
         });
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -545,7 +573,7 @@
 
         chatText.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
-                e.preventDefault(); 
+                e.preventDefault();
                 sendMessage();
             }
         });

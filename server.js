@@ -52,14 +52,13 @@ const io = new Server(server, {
 
 const PORT = process.env.PORT || 3000;
 
-
 const gameRoutes = require('./routes/gmkRoute');
 const guestRoutes = require('./routes/guestRoutes');
-
+const userRoutes = require('./routes/userRoute');
 
 app.use('/', gameRoutes(io)); 
 app.use('/go', guestRoutes(io));
-
+app.use('/t', userRoutes);
 
 server.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
