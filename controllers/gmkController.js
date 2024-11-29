@@ -1,7 +1,7 @@
 const Guest = require('../models/Guest');
 let rooms = {};
 let roomCounter = 0;
-let socketRoomMap = {}; 
+let socketRoomMap = {};
 
 const findAvailableRoom = () => {
     for (const room in rooms) {
@@ -46,7 +46,7 @@ const checkWin = (board, row, col, player) => {
             return true;
         }
     }
-    return false; 
+    return false;
 };
 
 
@@ -60,7 +60,7 @@ const setupGame = (socket, io) => {
             turn: null,
             readyPlayers: 0,
             resetVotes: {},
-            swapTurn: false 
+            swapTurn: false
         };
     }
 
@@ -81,21 +81,54 @@ const setupGame = (socket, io) => {
         }
     });
 
-    socket.on('player-ready', () => {
-        const player = rooms[room].players.find(p => p.id === socket.id);
+    const updatePlayerReadyStatus = (room, guestId, isReady, io) => {
+        if (!rooms[room]) return;
+
+        const player = rooms[room].players.find(p => p.guestId === guestId);
         if (player) {
-            player.isReady = true;
-            rooms[room].readyPlayers++;
-    
-            io.to(room).emit('player-ready', {
-                guestId: player.guestId,
-                players: rooms[room].players,
-            });
-    
-            if (rooms[room].readyPlayers === 2) {
+            player.isReady = isReady;
+            io.to(room).emit('update-ready-status', { guestId, isReady });
+            // console.log(`Player ${guestId} is now ${isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng'}`);
+        }
+    };
+
+    const resetPlayerReadyStatus = (room, io) => {
+        if (!rooms[room]) return;
+
+        rooms[room].players.forEach(player => (player.isReady = false));
+        io.to(room).emit('reset-ready-status');
+        // console.log(`Reset ready status for room: ${room}`);
+    };
+
+    socket.on('player-ready', ({ guestId }) => {
+        const room = socketRoomMap[socket.id];
+        if (room) {
+            updatePlayerReadyStatus(room, guestId, true, io);
+
+            if (rooms[room].players.every(player => player.isReady)) {
                 rooms[room].turn = rooms[room].players[0].guestId;
                 io.to(room).emit('game-start', { turn: rooms[room].turn });
             }
+        }
+    });
+
+    socket.on('reset-request', () => {
+        const room = socketRoomMap[socket.id];
+        if (!room || !rooms[room]) return;
+
+        // Đánh dấu người chơi này đã bấm "Yes"
+        rooms[room].resetVotes[socket.id] = true;
+
+        // Kiểm tra nếu tất cả người chơi đều đồng ý
+        const allPlayers = rooms[room].players.map(player => player.id);
+        const allAgreed = allPlayers.every(playerId => rooms[room].resetVotes[playerId]);
+
+        if (allAgreed) {
+            handleReset(room, io); // Bắt đầu lại ván chơi
+            rooms[room].resetVotes = {}; // Reset trạng thái phiếu bầu
+        } else {
+            // Thông báo cho người chơi còn lại
+            io.to(room).emit('reset-waiting', { playerId: socket.id });
         }
     });
 
@@ -105,73 +138,47 @@ const setupGame = (socket, io) => {
             console.log(`Invalid move: Room not found for socket ${socket.id}`);
             return;
         }
-    
+
         const roomData = rooms[room];
         const board = roomData.board;
-    
+
         // Validate turn
         if (guestId !== roomData.turn) {
-            console.log(`Invalid move: Not ${guestId}'s turn`);
+            // console.log(`Invalid move: Not ${guestId}'s turn`);
             io.to(socket.id).emit('invalid-move', { message: "Not your turn." });
             return;
         }
 
         // Check if the cell is already taken
         if (board[row][col] !== 0) {
-            console.log(`Invalid move: Cell (${row}, ${col}) is already taken`);
+            // console.log(`Invalid move: Cell (${row}, ${col}) is already taken`);
             io.to(socket.id).emit('invalid-move', { message: "Cell already taken." });
             return;
         }
-    
+
         // Update the board with the move
         const player = roomData.players.find(p => p.guestId === guestId);
         const playerIndex = roomData.players.indexOf(player);
         board[row][col] = playerIndex + 1;
-    
-        const playerSymbol = playerIndex + 1; 
+
+        const playerSymbol = playerIndex + 1;
         io.to(room).emit('move', { row, col, guestId, symbol: playerSymbol });
-    
+
         // Check for a win
         if (checkWin(board, row, col, playerIndex + 1)) {
             io.to(room).emit('win', guestId);
-            console.log(`Player ${guestId} wins!`);
+            // console.log(`Player ${guestId} wins!`);
             return;
         }
-    
+
         // Alternate the turn
         const nextPlayerIndex = (playerIndex + 1) % roomData.players.length;
         roomData.turn = roomData.players[nextPlayerIndex].guestId;
-        console.log(`Player ${guestId} moved. Next turn: ${roomData.turn}`);
-    
+        // console.log(`Player ${guestId} moved. Next turn: ${roomData.turn}`);
+
         io.to(room).emit('turn-changed', roomData.turn);
     });
 
-    socket.on('reset-request', () => {
-        const room = socketRoomMap[socket.id];
-        if (!room || !rooms[room]) return;
-    
-        const playerId = socket.id;
-        if (!rooms[room].resetVotes) {
-            rooms[room].resetVotes = {};
-        }
-    
-        if (!rooms[room].resetVotes[playerId]) {
-            rooms[room].resetVotes[playerId] = true;
-        }
-    
-        const playerIds = rooms[room].players.map(player => player.id);
-        if (playerIds.every(id => rooms[room].resetVotes[id])) {
-            handleReset(room, io);
-            rooms[room].resetVotes = {};
-        } else {
-            const otherPlayer = playerIds.find(id => id !== playerId);
-            if (otherPlayer) {
-                io.to(otherPlayer).emit('reset-confirmation', { from: playerId });
-            }
-        }
-    });
-    
-    
     socket.on('chat-message', ({ guestId, message }) => {
         const player = rooms[room].players.find(p => p.guestId === guestId);
         if (player) {
@@ -182,7 +189,7 @@ const setupGame = (socket, io) => {
     socket.on('disconnect', () => {
         const room = socketRoomMap[socket.id];
         if (room && rooms[room]) {
-            console.log(`Player ${socket.id} disconnected from room ${room}`);
+            // console.log(`Player ${socket.id} disconnected from room ${room}`);
             rooms[room].players = rooms[room].players.filter(p => p.id !== socket.id);
 
             if (rooms[room].players.length === 0) {
@@ -193,7 +200,7 @@ const setupGame = (socket, io) => {
 
             delete socketRoomMap[socket.id];
         } else {
-            console.log(`Socket ${socket.id} was not in any room.`);
+            // console.log(`Socket ${socket.id} was not in any room.`);
         }
     });
 };
@@ -201,21 +208,19 @@ const setupGame = (socket, io) => {
 const handleReset = (room, io) => {
     if (!rooms[room]) return;
 
-    console.log(`Resetting the game for room: ${room}`);
+    // console.log(`Resetting the game for room: ${room}`);
     rooms[room].board = Array(19).fill().map(() => Array(19).fill(0));
 
     // sưap turn
-    rooms[room].swapTurn = !rooms[room].swapTurn; 
+    rooms[room].swapTurn = !rooms[room].swapTurn;
     const firstPlayerIndex = rooms[room].swapTurn ? 1 : 0;
     rooms[room].turn = rooms[room].players[firstPlayerIndex].guestId;
 
-    rooms[room].resetVotes = {}; 
+    rooms[room].resetVotes = {};
     io.to(room).emit('reset', {
         turn: rooms[room].turn,
         swapTurn: rooms[room].swapTurn,
-    }); 
+    });
 };
-
-
 
 module.exports = { setupGame };

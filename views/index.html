@@ -262,15 +262,16 @@
 <body class="d-flex flex-column align-items-center justify-content-center">
     <div class="container text-center">
         <!-- <h1 class="mb-4">Gomoku Realtime</h1> -->
-
         <div id="player-info" class="row justify-content-between bg-dark p-3 rounded">
             <div id="player1" class="col text-center">
                 <img id="player1-avatar" src="" alt="Player 1" class="" width="50" height="50">
                 <p id="player1-name">Player 1</p>
+                <p id="status-text-player1">Chưa sẵn sàng</p>
             </div>
             <div id="player2" class="col text-center">
                 <img id="player1-avatar" src="" alt="Player 1" class="" width="50" height="50">
                 <p id="player2-name"></p>
+                <p id="status-text-player2">Chưa sẵn sàng</p>
             </div>
         </div>
         <button id="ready-btn" class="btn btn btn-secondary mt-3">Sẵn sàng</button>
@@ -416,6 +417,11 @@
         document.getElementById('btn-chat').addEventListener('click', () => {
             scrollToBottom(chatMessages);
         });
+        socket.on('reset-waiting', ({ playerId }) => {
+            gameStatus.style.display = 'block';
+            gameStatus.textContent = `Đang chờ người chơi khác đồng ý...`;
+        });
+
 
         document.getElementById('yes-play-again').addEventListener('click', () => {
             socket.emit('reset-request');
@@ -514,23 +520,58 @@
                 }
             }
         };
-
         socket.on('player-info', (updatedPlayers) => {
             players = updatedPlayers;
             players.forEach((player, index) => {
                 const playerElement = document.getElementById(`player${index + 1}`);
+                const statusTextId = index === 0 ? 'status-text-player1' : 'status-text-player2';
                 if (playerElement) {
                     playerElement.querySelector('img').src = player.avatar || '/default-avatar.jpg';
                     playerElement.querySelector('p').textContent = player.name || `Player ${index + 1}`;
+                    document.getElementById(statusTextId).textContent = player.isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng';
                 }
             });
             // console.log("Updated players:", players);
         });
 
+
+        socket.on('update-ready-status', (data) => {
+            console.log('Update Ready Status:', data);
+        });
+
+        socket.on('reset-ready-status', () => {
+            console.log('Reset Ready Status triggered');
+        });
+
         const readyButton = document.getElementById('ready-btn');
+        const statusTextPlayer1 = document.getElementById('status-text-player1');
+        const statusTextPlayer2 = document.getElementById('status-text-player2');
+
         readyButton.addEventListener('click', () => {
-            readyButton.disabled = true;
-            socket.emit('player-ready');
+            const urlParams = new URLSearchParams(window.location.search);
+            const guestId = urlParams.get('guestId');
+
+            if (guestId) {
+                socket.emit('player-ready', { guestId });
+                readyButton.disabled = true; // Vô hiệu hóa nút
+            }
+        });
+
+        socket.on('update-ready-status', ({ guestId, isReady }) => {
+            // Tìm người chơi dựa trên guestId
+            const playerIndex = players.findIndex(player => player.guestId === guestId);
+
+            if (playerIndex === 0) {
+                document.getElementById('status-text-player1').textContent = isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng';
+            } else if (playerIndex === 1) {
+                document.getElementById('status-text-player2').textContent = isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng';
+            }
+        });
+
+        socket.on('reset-ready-status', () => {
+            document.getElementById('status-text-player1').textContent = 'Chưa sẵn sàng';
+            document.getElementById('status-text-player2').textContent = 'Chưa sẵn sàng';
+            document.getElementById('ready-btn').disabled = false; // Kích hoạt lại nút sẵn sàng
         });
 
         socket.on('player-ready', ({ guestId, players }) => {
