@@ -10,9 +10,24 @@
     <style>
         body {
             height: 100vh;
-            background-color: #322f2f;
+            /* background-color: #322f2f; */
+            background: linear-gradient(135deg, #322f2f, #3e416f);
             color: white;
             font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #game-container {
+            display: grid;
+            grid-template-columns: 4fr 2fr;
+            gap: 10px;
+            width: 100%;
+            max-width: 1500px;
+            align-items: center;
         }
 
         #board {
@@ -20,11 +35,157 @@
             grid-template-columns: repeat(19, 1fr);
             gap: 1px;
             width: 100%;
-            max-width: 800px;
-            margin: 20px auto;
+            max-width: 1000px;
+            height: auto;
+            aspect-ratio: 1;
             background-color: #b19b9b;
             border: 2px solid #828282;
             box-shadow: 0 0 10px rgba(156, 152, 152, 0.5);
+        }
+
+        #chat-section {
+            background-color: #444;
+            width: 100%;
+            max-width: 500px;
+            height: 95%;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: stretch;
+        }
+
+        #chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            background-color: #555;
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 10px;
+            max-height: 690px;
+            min-height: 690px;
+        }
+
+        #chat-input {
+            display: flex;
+            gap: 10px;
+        }
+
+        #player-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            /* background-color: #1c1c1c; */
+            margin-left: 2px;
+            width: 100%;
+            max-width: 1500px;
+            padding: 10px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        #player1 {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            padding: 0;
+            margin: 0;
+        }
+
+        #player2 {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            padding: 0;
+            margin: 0;
+        }
+
+        #player1 img {
+            margin: 0;
+            padding: 0;
+
+        }
+
+        #player2 img {
+            margin: 0;
+            padding: 0;
+        }
+
+        #player2 p {
+            visibility: visible;
+        }
+
+        #ready-btn {
+            margin-bottom: 10px;
+            margin-right: 150px;
+            align-self: center;
+        }
+
+        @media (max-width: 768px) {
+            #game-container {
+                grid-template-columns: 1fr;
+                ;
+                gap: 10px;
+                height: auto;
+            }
+
+            #board {
+                max-width: 100%;
+                width: 100%;
+                aspect-ratio: 1;
+            }
+
+            #chat-section {
+                max-width: 100%;
+                width: 100%;
+                height: auto;
+            }
+
+            #player-info {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+                gap: 15px;
+            }
+
+            #ready-btn {
+                margin: 20px auto;
+            }
+        }
+
+        @media (max-width: 576px) {
+            #chat-messages {
+                max-height: 300px;
+                min-height: 300px;
+            }
+
+            #chat-input {
+                flex-direction: column;
+                gap: 5px;
+            }
+
+            #board {
+                grid-template-columns: repeat(19, minmax(0, 1fr));
+            }
+        }
+
+        #reset-confirmation {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #444;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 1000;
         }
 
         .cell {
@@ -54,63 +215,96 @@
             display: none;
         }
 
-
-        #chat-messages {
-            height: 200px;
-            overflow-y: auto;
+        #emoji-list {
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 5px;
+            max-width: 100%;
+            overflow-x: auto;
+            overflow-y: hidden;
+            background-color: #fff;
+            border-radius: 5px;
+            padding: 10px;
+            white-space: nowrap;
         }
 
-        #reset-confirmation {
+        .emoji {
+            cursor: pointer;
+            font-size: 1.5rem;
+            padding: 5px;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+
+        .emoji:hover {
+            background-color: #ddd;
+        }
+
+        .d-none {
             display: none;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: #444;
-            color: white;
-            padding: 20px;
-            border-radius: 10px;
-            text-align: center;
-            z-index: 1000;
         }
     </style>
 </head>
 
 <body class="d-flex flex-column align-items-center justify-content-center">
     <div class="container text-center">
-        <h1 class="mb-4">Gomoku Realtime</h1>
+        <!-- <h1 class="mb-4">Gomoku Realtime</h1> -->
 
         <div id="player-info" class="row justify-content-between bg-dark p-3 rounded">
             <div id="player1" class="col text-center">
-                <img id="player1-avatar" src="" alt="Player 1" class="img-thumbnail" width="50" height="50">
+                <img id="player1-avatar" src="" alt="Player 1" class="" width="50" height="50">
                 <p id="player1-name">Player 1</p>
             </div>
             <div id="player2" class="col text-center">
-                <img id="player2-avatar" src="" alt="Player 2" class="img-thumbnail" width="50" height="50">
-                <p id="player2-name">Player 2</p>
+                <img id="player1-avatar" src="" alt="Player 1" class="" width="50" height="50">
+                <p id="player2-name"></p>
             </div>
         </div>
-
-        <button id="ready-btn" class="btn btn-success mt-3">Sẵn sàng</button>
-
-        <div id="board" class="my-4"></div>
-
-        <div id="chat-section" class="w-50">
-            <div id="chat-messages" class="bg-secondary p-3 rounded mb-3 text-start"></div>
-            <div id="chat-input" class="input-group">
-                <input type="text" id="chat-text" class="form-control" placeholder="Nhập nội dung chat...">
-                <button id="send-chat" class="btn btn-success">Gửi</button>
+        <button id="ready-btn" class="btn btn btn-secondary mt-3">Sẵn sàng</button>
+        <div id="game-container" class="d-grid">
+            <div id="board" class="my-4"></div>
+            <div id="chat-section">
+                <div id="chat-navigation" class="d-flex justify-content-between mb-3">
+                    <button id="btn-chat" class="btn btn-secondary">Chat</button>
+                    <button id="btn-settings" class="btn btn-secondary">Settings</button>
+                </div>
+                <div id="chat-content">
+                    <div id="chat-messages" class="bg-secondary p-3 rounded mb-3 text-start"></div>
+                    <div id="chat-input" class="input-group">
+                        <input type="text" id="chat-text" class="form-control" placeholder="Nhập nội dung chat...">
+                        <button id="emoji-button" class="btn btn-secondary">😀</button>
+                        <button id="send-chat" class="btn btn-secondary">Gửi</button>
+                    </div>
+                    <!-- Emoji unicode -->
+                    <div id="emoji-list" class="d-none p-2 border bg-white" style="position: absolute; z-index: 1000;">
+                        <span class="emoji">😀</span>
+                        <span class="emoji">😁</span>
+                        <span class="emoji">😂</span>
+                        <span class="emoji">🤣</span>
+                        <span class="emoji">😃</span>
+                        <span class="emoji">😭</span>
+                        <span class="emoji">🤯</span>
+                        <span class="emoji">😅</span>
+                        <span class="emoji">😆</span>
+                        <span class="emoji">😍</span>
+                        <span class="emoji">😘</span>
+                        <span class="emoji">😎</span>
+                        <span class="emoji">🐸</span>
+                    </div>
+                </div>
+                <div id="settings-content" class="d-none">
+                    <p>Chức năng đang được phát triển.</p>
+                </div>
             </div>
         </div>
     </div>
-
     <div id="reset-confirmation">
         <p id="winner-message">Winner: </p>
         <p>Res-G: <span id="countdown-timer">10</span>s</p>
         <button id="yes-play-again">Yes</button>
         <button id="no-play-again">No</button>
     </div>
-        <div id="game-status">Bắt đầu</div>
+    <div id="game-status">Bắt đầu</div>
 
     <script>
         const socket = io();
@@ -122,6 +316,39 @@
         const resetConfirmation = document.getElementById('reset-confirmation');
         const winnerMessage = document.getElementById('winner-message');
         const countdownTimer = document.getElementById('countdown-timer');
+
+        document.getElementById('btn-chat').addEventListener('click', () => {
+            document.getElementById('chat-content').classList.remove('d-none');
+            document.getElementById('settings-content').classList.add('d-none');
+        });
+
+        document.getElementById('btn-settings').addEventListener('click', () => {
+            document.getElementById('chat-content').classList.add('d-none');
+            document.getElementById('settings-content').classList.remove('d-none');
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const emojiButton = document.getElementById('emoji-button');
+            const emojiList = document.getElementById('emoji-list');
+            const chatText = document.getElementById('chat-text');
+
+            emojiButton.addEventListener('click', () => {
+                emojiList.classList.toggle('d-none');
+            });
+
+            document.querySelectorAll('.emoji').forEach(emoji => {
+                emoji.addEventListener('click', (e) => {
+                    chatText.value += e.target.textContent;
+                    emojiList.classList.add('d-none');
+                });
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!emojiList.contains(e.target) && e.target !== emojiButton) {
+                    emojiList.classList.add('d-none');
+                }
+            });
+        });
 
         let playerNumber = null;
         let currentTurn = 1;
@@ -143,6 +370,25 @@
             }, 1000);
         };
 
+        const isScrolledToBottom = (element) => {
+            return element.scrollHeight - element.scrollTop === element.clientHeight;
+        };
+
+        const scrollToBottom = (element) => {
+            element.scrollTop = element.scrollHeight;
+        };
+
+        socket.on('chat-message', ({ player, message }) => {
+            const wasScrolledToBottom = isScrolledToBottom(chatMessages);
+            if (wasScrolledToBottom) {
+                scrollToBottom(chatMessages);
+            }
+        });
+
+        document.getElementById('btn-chat').addEventListener('click', () => {
+            scrollToBottom(chatMessages);
+        });
+
         document.getElementById('yes-play-again').addEventListener('click', () => {
             socket.emit('reset-request');
             clearInterval(countdown);
@@ -157,15 +403,13 @@
         socket.on('win', (winner) => {
             const winningPlayer = players.find(player => player.guestId === winner);
             const winnerName = winningPlayer ? winningPlayer.name : winner;
-            // winnerMessage.textContent = `Winner: ${winnerName}`;
             resetConfirmation.style.display = 'block';
-            // gameStatus.textContent = `Người chơi ${winnerName} thắng!`;
             gameStatus.style.display = 'block';
+            // console.log('Winning player:', winningPlayer);
+            winnerMessage.textContent = `Winner: ${winnerName}`;
             gameStarted = false;
             startCountdown();
         });
-
-
 
         socket.on('reset', ({ turn, swapTurn: newSwapTurn }) => {
             resetConfirmation.style.display = 'none';
@@ -243,28 +487,8 @@
             }
         };
 
-
-        // socket.on('player-info', (players) => {
-        //     players.forEach((player) => {
-        //         if (player.id === socket.id) {
-        //             playerNumber = player.guestId;
-        //             console.log(`You are Guest ${playerNumber}`);
-        //         }
-        //     });
-
-        //     players.forEach((player, index) => {
-        //         const playerElement = document.getElementById(`player${index + 1}`);
-        //         if (playerElement) {
-        //             playerElement.querySelector('img').src = player.avatar || '/default-avatar.jpg';
-        //             playerElement.querySelector('p').textContent = player.name || `Player ${index + 1}`;
-        //         }
-        //     });
-
-        // });
-
         socket.on('player-info', (updatedPlayers) => {
             players = updatedPlayers;
-
             players.forEach((player, index) => {
                 const playerElement = document.getElementById(`player${index + 1}`);
                 if (playerElement) {
@@ -272,10 +496,8 @@
                     playerElement.querySelector('p').textContent = player.name || `Player ${index + 1}`;
                 }
             });
-
-            console.log("Updated players:", players);
+            // console.log("Updated players:", players);
         });
-
 
         const readyButton = document.getElementById('ready-btn');
         readyButton.addEventListener('click', () => {
@@ -284,8 +506,7 @@
         });
 
         socket.on('player-ready', ({ guestId, players }) => {
-            console.log(`Guest ${guestId} is ready.`);
-
+            // console.log(`Guest ${guestId} is ready.`);
             players.forEach(player => {
                 if (player.guestId === guestId) {
                     console.log(`${player.name} is ready`);
@@ -301,14 +522,14 @@
         socket.on('game-start', ({ turn }) => {
             gameStarted = true;
             currentTurn = turn;
-            console.log(`Game started. Turn: ${turn}`);
+            // console.log(`Game started. Turn: ${turn}`);
             gameStatus.style.display = 'block';
             // setTimeout(() => (gameStatus.style.display = 'none'), 2000);
         });
 
         socket.on('turn-changed', (newTurn) => {
             currentTurn = newTurn;
-            console.log(`Turn changed to: ${newTurn}`);
+            // console.log(`Turn changed to: ${newTurn}`);
         });
 
         socket.on('move', ({ row, col, guestId, symbol }) => {
@@ -320,7 +541,16 @@
             }
         });
 
-        sendChat.addEventListener('click', () => {
+        sendChat.addEventListener('click', sendMessage);
+
+        chatText.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault(); 
+                sendMessage();
+            }
+        });
+
+        function sendMessage() {
             const message = chatText.value.trim();
             const urlParams = new URLSearchParams(window.location.search);
             const guestId = urlParams.get('guestId');
@@ -329,7 +559,8 @@
                 socket.emit('chat-message', { guestId, message });
                 chatText.value = '';
             }
-        });
+        }
+
 
         socket.on('chat-message', ({ player, message }) => {
             chatMessages.innerHTML += `<p><strong>${player}:</strong> ${message}</p>`;

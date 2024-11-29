@@ -151,7 +151,6 @@ const setupGame = (socket, io) => {
         if (!room || !rooms[room]) return;
     
         const playerId = socket.id;
-        // Khởi tạo resetVotes nếu chưa có
         if (!rooms[room].resetVotes) {
             rooms[room].resetVotes = {};
         }
@@ -163,7 +162,7 @@ const setupGame = (socket, io) => {
         const playerIds = rooms[room].players.map(player => player.id);
         if (playerIds.every(id => rooms[room].resetVotes[id])) {
             handleReset(room, io);
-            rooms[room].resetVotes = {}; // Reset lại votes sau khi chơi lại
+            rooms[room].resetVotes = {};
         } else {
             const otherPlayer = playerIds.find(id => id !== playerId);
             if (otherPlayer) {
@@ -203,7 +202,7 @@ const handleReset = (room, io) => {
     if (!rooms[room]) return;
 
     console.log(`Resetting the game for room: ${room}`);
-    rooms[room].board = Array(19).fill().map(() => Array(19).fill(0)); // Reset bàn cờ
+    rooms[room].board = Array(19).fill().map(() => Array(19).fill(0));
 
     // sưap turn
     rooms[room].swapTurn = !rooms[room].swapTurn; 
