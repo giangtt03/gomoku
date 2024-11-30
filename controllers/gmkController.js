@@ -81,30 +81,33 @@ const setupGame = (socket, io) => {
                 avatar: guest.avatar,
                 isReady: false,
             });
+    
             io.to(room).emit('player-info', rooms[room].players);
+    
+            if (rooms[room].players.length > 1) {
+                io.to(room).emit('update-kick-button', { showKick: true });
+            }
         }
     });
-
+    
     socket.on('kick-player', ({ guestId }) => {
         const room = socketRoomMap[socket.id];
         if (!room || !rooms[room]) return;
-    
+
         const roomData = rooms[room];
-        const kicker = roomData.players.find(p => p.id === socket.id); 
-        const target = roomData.players.find(p => p.guestId === guestId); 
-    
+        const kicker = roomData.players.find(p => p.id === socket.id);
+        const target = roomData.players.find(p => p.guestId === guestId);
+
         if (kicker && roomData.players[0].id === socket.id && target) {
             console.log(`Kicker: ${kicker.name} đang đuổi target: ${target.name}`);
             roomData.players = roomData.players.filter(p => p.guestId !== guestId);
-    
+
             io.to(target.id).emit('kicked', { message: 'Bạn đã bị đuổi khỏi phòng😭!' });
             io.sockets.sockets.get(target.id)?.leave(room);
-    
+
             io.to(room).emit('player-kicked', { guestId });
         }
     });
-    
-    
 
     const updatePlayerReadyStatus = (room, guestId, isReady, io) => {
         if (!rooms[room]) return;
@@ -129,26 +132,38 @@ const setupGame = (socket, io) => {
         const room = socketRoomMap[socket.id];
         if (room) {
             updatePlayerReadyStatus(room, guestId, true, io);
-
+    
             if (rooms[room].players.every(player => player.isReady)) {
+                rooms[room].board = Array(19).fill().map(() => Array(19).fill(0));
+    
                 rooms[room].turn = rooms[room].players[0].guestId;
                 io.to(room).emit('game-start', { turn: rooms[room].turn });
             }
         }
     });
+    
+    socket.on('reset-request', (data) => {
+        if (!data || typeof data.choice !== 'string') {
+            console.error(`Invalid reset-request data from socket ${socket.id}`);
+            return;
+        }
 
-    socket.on('reset-request', () => {
+        const { choice } = data;
         const room = socketRoomMap[socket.id];
         if (!room || !rooms[room]) return;
 
-        rooms[room].resetVotes[socket.id] = true;
+        rooms[room].resetVotes[socket.id] = choice;
 
         const allPlayers = rooms[room].players.map(player => player.id);
-        const allAgreed = allPlayers.every(playerId => rooms[room].resetVotes[playerId]);
+        const allAgreed = allPlayers.every(playerId => rooms[room].resetVotes[playerId] === 'yes');
+
+        if (choice === 'no') {
+            io.to(room).emit('reset-declined', { playerId: socket.id });
+        }
 
         if (allAgreed) {
-            handleReset(room, io); 
-            rooms[room].resetVotes = {}; 
+            handleReset(room, io);
+            rooms[room].resetVotes = {};
         } else {
             io.to(room).emit('reset-waiting', { playerId: socket.id });
         }
@@ -170,7 +185,6 @@ const setupGame = (socket, io) => {
             return;
         }
 
-        // Check if the cell is already taken
         if (board[row][col] !== 0) {
             // console.log(`Invalid move: Cell (${row}, ${col}) is already taken`);
             io.to(socket.id).emit('invalid-move', { message: "Cell already taken." });
@@ -209,20 +223,26 @@ const setupGame = (socket, io) => {
     socket.on('disconnect', () => {
         const room = socketRoomMap[socket.id];
         if (room && rooms[room]) {
-            // console.log(`Player ${socket.id} disconnected from room ${room}`);
-            rooms[room].players = rooms[room].players.filter(p => p.id !== socket.id);
-
-            if (rooms[room].players.length === 0) {
+            const roomData = rooms[room];
+            const disconnectedPlayer = roomData.players.find(p => p.id === socket.id);
+    
+            roomData.players = roomData.players.filter(p => p.id !== socket.id);
+    
+            if (roomData.players.length === 0) {
                 delete rooms[room];
             } else {
-                io.to(room).emit('player-disconnected', { message: 'Đối thủ đã ngắt kết nối.' });
+                resetPlayerReadyStatus(room, io);
+    
+                io.to(room).emit('update-kick-button', { showKick: false });
+                io.to(room).emit('player-disconnected', {
+                    message: `${disconnectedPlayer?.name || 'Người chơi'} đã thoát.`,
+                    players: roomData.players,
+                });
             }
-
             delete socketRoomMap[socket.id];
-        } else {
-            // console.log(`Socket ${socket.id} was not in any room.`);
         }
     });
+    
 };
 
 const handleReset = (room, io) => {

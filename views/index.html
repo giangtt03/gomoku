@@ -305,12 +305,6 @@
                 <p id="player2-name"></p>
                 <p id="status-text-player2">Chưa sẵn sàng</p>
             </div>
-            <div id="players-content" class="d-none">
-                <ul id="players-list" class="list-group">
-                    <!-- Sẽ được cập nhật động -->
-                </ul>
-            </div>
-
         </div>
         <button id="ready-btn" class="btn btn btn-secondary mt-3">Sẵn sàng</button>
         <div id="game-container" class="d-grid">
@@ -345,13 +339,13 @@
                         <span class="emoji">🐸</span>
                     </div>
                 </div>
-                <div id="settings-content" class="d-none">
-                    <p>Chức năng đang được phát triển.</p>
-                </div>
                 <div id="players-content" class="d-none">
                     <ul id="players-list" class="list-group">
-                        <p>List user</p>
+                        <p>List user:</p>
                     </ul>
+                </div>
+                <div id="settings-content" class="d-none">
+                    <p>Chức năng đang được phát triển.</p>
                 </div>
             </div>
         </div>
@@ -364,12 +358,10 @@
     </div>
     <div id="game-status">Bắt đầu</div>
 
-    <!-- Thông báo khi bị kick -->
     <div id="kick-notification" class="notification" style="display: none;">
         <p id="kick-message"></p>
         <!-- <button id="close-notification" class="btn btn-danger btn-sm">Đóng</button> -->
     </div>
-
 
     <script>
         const socket = io();
@@ -430,6 +422,7 @@
         let countdown;
         let swapTurn = false;
         let players = [];
+        let resetDeclined = false;//Biến theo dõi trạng thái yes-no để ẩn hiện nút kick
 
         const startCountdown = () => {
             let time = 10;
@@ -467,15 +460,17 @@
             gameStatus.textContent = `Đang chờ người chơi khác đồng ý...`;
         });
 
-
         document.getElementById('yes-play-again').addEventListener('click', () => {
-            socket.emit('reset-request');
+            socket.emit('reset-request', { choice: 'yes' });
+            resetDeclined = false;
             clearInterval(countdown);
             resetConfirmation.style.display = 'none';
         });
 
         document.getElementById('no-play-again').addEventListener('click', () => {
+            socket.emit('reset-request', { choice: 'no' });
             clearInterval(countdown);
+            resetDeclined = true;
             resetConfirmation.style.display = 'none';
         });
 
@@ -495,6 +490,14 @@
             clearInterval(countdown);
             swapTurn = newSwapTurn;
 
+            const kickButtons = document.querySelectorAll('.kick-btn');
+            // Ẩn btn kick nếu không có ai từ chối
+            if (!resetDeclined) {
+                kickButtons.forEach(button => {
+                    button.style.display = 'none';
+                });
+            }
+
             const cells = document.querySelectorAll('.cell');
             cells.forEach(cell => {
                 cell.textContent = '';
@@ -508,6 +511,14 @@
             gameStatus.style.display = 'block';
             // gameStatus.textContent = `Game restarted! Player ${turn === socket.id ? 'you' : 'opponent'} turn (${playerSymbol[0]})`;
             // setTimeout(() => (gameStatus.style.display = 'none'), 2000);
+        });
+
+        socket.on('reset-declined', () => {
+            resetDeclined = true;
+            const kickButtons = document.querySelectorAll('.kick-btn');
+            kickButtons.forEach(button => {
+                button.style.display = 'inline-block';
+            });
         });
 
         const fetchGuestData = async (guestId) => {
@@ -581,6 +592,11 @@
                     kickButton.classList.add('btn', 'btn-danger', 'kick-btn', 'btn-sm', 'mt-2');
                     kickButton.textContent = 'Kick';
 
+                    // Nếu bắt đầu ẩn btn kick
+                    if (gameStarted) {
+                        kickButton.style.display = 'none';
+                    }
+
                     kickButton.addEventListener('click', () => {
                         socket.emit('kick-player', { guestId: player2.guestId });
                     });
@@ -630,6 +646,9 @@
                 player2Element.querySelector('p').textContent = '';
                 document.getElementById('status-text-player2').textContent = 'Chưa có người chơi';
 
+                document.getElementById('status-text-player1').textContent = 'Chưa sẵn sàng';
+                document.getElementById('ready-btn').disabled = false;
+
                 const kickButton = player2Element.querySelector('.kick-btn');
                 if (kickButton) kickButton.remove();
             }
@@ -655,6 +674,7 @@
 
             if (playerIndex === 0) {
                 document.getElementById('status-text-player1').textContent = isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng';
+                document.getElementById('ready-btn').disabled = isReady;
             } else if (playerIndex === 1) {
                 document.getElementById('status-text-player2').textContent = isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng';
             }
@@ -711,7 +731,17 @@
         socket.on('game-start', ({ turn }) => {
             gameStarted = true;
             currentTurn = turn;
+            // Xóa bàn cờ trên giao diện
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach(cell => {
+                cell.textContent = '';
+                cell.classList.remove('taken');
+            });
             // console.log(`Game started. Turn: ${turn}`);
+            const kickButtons = document.querySelectorAll('.kick-btn');
+            kickButtons.forEach(button => {
+                button.style.display = 'none';
+            });
             gameStatus.style.display = 'block';
             // setTimeout(() => (gameStatus.style.display = 'none'), 2000);
         });
@@ -753,6 +783,36 @@
         socket.on('chat-message', ({ player, message }) => {
             chatMessages.innerHTML += `<p><strong>${player}:</strong> ${message}</p>`;
             chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
+
+        // update ui aftar pl disconnect
+        socket.on('player-disconnected', ({ message, players }) => {
+            console.log(message);
+
+            const notification = document.getElementById('game-status');
+            notification.style.display = 'block';
+            notification.textContent = message;
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 3000);
+
+            const player1Element = document.getElementById('player1');
+            const player2Element = document.getElementById('player2');
+
+            if (players.length === 1) {
+                const player1 = players[0];
+                player1Element.querySelector('#player1-name').textContent = player1.name || 'Player 1';
+                player2Element.querySelector('#player2-name').textContent = '';
+                player2Element.querySelector('img').src = '';
+                document.getElementById('status-text-player2').textContent = 'Chưa có người chơi';
+            }
+        });
+
+        socket.on('update-kick-button', ({ showKick }) => {
+            const kickButtons = document.querySelectorAll('.kick-btn');
+            kickButtons.forEach(button => {
+                button.style.display = showKick ? 'inline-block' : 'none';
+            });
         });
 
         createBoard();
