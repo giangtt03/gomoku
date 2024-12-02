@@ -263,4 +263,4 @@ const handleReset = (room, io) => {
     });
 };
 
-module.exports = { setupGame };
+module.exports = { setupGame, rooms };

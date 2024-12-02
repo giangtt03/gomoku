@@ -83,8 +83,8 @@
                     return response.json();
                 })
                 .then(data => {
-                    const guestId = data.guestId;
-                    window.location.href = `/go/play?guestId=${guestId}`;
+                    sessionStorage.setItem('guestId', data.guestId);
+                    window.location.href = `/go/play?guestId=${data.guestId}`;
                 })
                 .catch(error => console.error('Error:', error));
         }
