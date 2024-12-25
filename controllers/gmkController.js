@@ -81,15 +81,15 @@ const setupGame = (socket, io) => {
                 avatar: guest.avatar,
                 isReady: false,
             });
-    
+
             io.to(room).emit('player-info', rooms[room].players);
-    
+
             if (rooms[room].players.length > 1) {
                 io.to(room).emit('update-kick-button', { showKick: true });
             }
         }
     });
-    
+
     socket.on('kick-player', ({ guestId }) => {
         const room = socketRoomMap[socket.id];
         if (!room || !rooms[room]) return;
@@ -102,10 +102,13 @@ const setupGame = (socket, io) => {
             console.log(`Kicker: ${kicker.name} đang đuổi target: ${target.name}`);
             roomData.players = roomData.players.filter(p => p.guestId !== guestId);
 
+            roomData.players.forEach(player => player.isReady = false);
+
             io.to(target.id).emit('kicked', { message: 'Bạn đã bị đuổi khỏi phòng😭!' });
             io.sockets.sockets.get(target.id)?.leave(room);
 
             io.to(room).emit('player-kicked', { guestId });
+            io.to(room).emit('reset-ready-status');
         }
     });
 
@@ -132,16 +135,16 @@ const setupGame = (socket, io) => {
         const room = socketRoomMap[socket.id];
         if (room) {
             updatePlayerReadyStatus(room, guestId, true, io);
-    
+
             if (rooms[room].players.every(player => player.isReady)) {
                 rooms[room].board = Array(19).fill().map(() => Array(19).fill(0));
-    
+
                 rooms[room].turn = rooms[room].players[0].guestId;
                 io.to(room).emit('game-start', { turn: rooms[room].turn });
             }
         }
     });
-    
+
     socket.on('reset-request', (data) => {
         if (!data || typeof data.choice !== 'string') {
             console.error(`Invalid reset-request data from socket ${socket.id}`);
@@ -159,6 +162,11 @@ const setupGame = (socket, io) => {
 
         if (choice === 'no') {
             io.to(room).emit('reset-declined', { playerId: socket.id });
+            // hiẻn thị thông báo khi reject--dialog
+            const player = rooms[room].players.find(p => p.id === socket.id);
+            if (player) {
+                io.to(room).emit('player-not-ready', { playerId: socket.id, playerName: player.name });
+            }
         }
 
         if (allAgreed) {
@@ -225,14 +233,14 @@ const setupGame = (socket, io) => {
         if (room && rooms[room]) {
             const roomData = rooms[room];
             const disconnectedPlayer = roomData.players.find(p => p.id === socket.id);
-    
+
             roomData.players = roomData.players.filter(p => p.id !== socket.id);
-    
+
             if (roomData.players.length === 0) {
                 delete rooms[room];
             } else {
                 resetPlayerReadyStatus(room, io);
-    
+
                 io.to(room).emit('update-kick-button', { showKick: false });
                 io.to(room).emit('player-disconnected', {
                     message: `${disconnectedPlayer?.name || 'Người chơi'} đã thoát.`,
@@ -242,7 +250,7 @@ const setupGame = (socket, io) => {
             delete socketRoomMap[socket.id];
         }
     });
-    
+
 };
 
 const handleReset = (room, io) => {

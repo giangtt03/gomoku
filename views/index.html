@@ -180,12 +180,70 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background-color: #444;
+            background: linear-gradient(135deg, #322f2f, #3e416f);
             color: white;
-            padding: 20px;
-            border-radius: 10px;
+            padding: 30px;
+            border-radius: 15px;
             text-align: center;
             z-index: 1000;
+            box-shadow: 0px 10px 20px rgba(0, 0, 0, 0.5);
+            max-width: 400px;
+            width: 90%;
+        }
+
+        #reset-confirmation p {
+            margin: 0;
+            padding: 5px 0;
+        }
+
+        #reset-confirmation #winner-message {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        #reset-confirmation .countdown {
+            font-size: 1.2rem;
+            color: #ff6666;
+        }
+
+        #reset-confirmation .button-container {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        #reset-confirmation button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        #reset-confirmation #yes-play-again {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        #reset-confirmation #yes-play-again:hover {
+            background-color: #45a049;
+        }
+
+        #reset-confirmation #no-play-again {
+            background-color: #f44336;
+            color: white;
+        }
+
+        #reset-confirmation #no-play-again:hover {
+            background-color: #e53935;
+        }
+
+        #reset-confirmation #not-ready-message {
+            margin-top: 15px;
+            color: #ff4d4d;
+            font-weight: bold;
         }
 
         .cell {
@@ -257,7 +315,6 @@
             margin-bottom: 5px;
         }
 
-        /* Định dạng cho thông báo bị kick */
         #kick-notification {
             position: fixed;
             top: 50%;
@@ -274,27 +331,30 @@
             z-index: 9999;
         }
 
-        /* #close-notification {
-            position: absolute;
-            top: 10px;
-            right: 10px;
+        .kick-btn {
+            display: none;
             background-color: transparent;
+            color: red;
             border: none;
-            color: white;
             font-size: 20px;
             cursor: pointer;
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            z-index: 10;
         }
 
-        #close-notification:hover {
-            color: #FFD700;
-        } */
+        .kick-btn:hover {
+            color: darkred;
+            transform: scale(1.2);
+        }
     </style>
 </head>
 
 <body class="d-flex flex-column align-items-center justify-content-center">
     <div class="container text-center">
         <!-- <h1 class="mb-4">Gomoku Realtime</h1> -->
-        <div id="player-info" class="row justify-content-between bg-dark p-3 rounded">
+        <div id="player-info" class="row justify-content-between ">
             <div id="player1" class="col text-center">
                 <img id="player1-avatar" src="" alt="Player 1" class="" width="50" height="50">
                 <p id="player1-name">Player 1</p>
@@ -350,12 +410,17 @@
             </div>
         </div>
     </div>
+
     <div id="reset-confirmation">
-        <p id="winner-message">Winner: </p>
-        <p>Res-G: <span id="countdown-timer">10</span>s</p>
-        <button id="yes-play-again">Yes</button>
-        <button id="no-play-again">No</button>
+        <p id="winner-message">Winner: <span id="winner-name">Player 1</span></p>
+        <p class="countdown">Restarting in: <span id="countdown-timer">10</span>s</p>
+        <div class="button-container">
+            <button id="yes-play-again">Yes</button>
+            <button id="no-play-again">No</button>
+        </div>
+        <p id="not-ready-message" class="hidden"></p>
     </div>
+
     <div id="game-status">Bắt đầu</div>
 
     <div id="kick-notification" class="notification" style="display: none;">
@@ -460,6 +525,13 @@
             gameStatus.textContent = `Đang chờ người chơi khác đồng ý...`;
         });
 
+        socket.on('player-not-ready', ({ playerId, playerName }) => {
+            const notReadyMessage = document.getElementById('not-ready-message');
+
+            notReadyMessage.textContent = `${playerName} không sẵn sàng!`;
+            notReadyMessage.classList.remove('hidden');
+        });
+
         document.getElementById('yes-play-again').addEventListener('click', () => {
             socket.emit('reset-request', { choice: 'yes' });
             resetDeclined = false;
@@ -491,7 +563,6 @@
             swapTurn = newSwapTurn;
 
             const kickButtons = document.querySelectorAll('.kick-btn');
-            // Ẩn btn kick nếu không có ai từ chối
             if (!resetDeclined) {
                 kickButtons.forEach(button => {
                     button.style.display = 'none';
@@ -561,6 +632,7 @@
                         }
                         if (!gameStarted) {
                             console.log('Invalid move: Game not started.');
+                            document.getElementById('ready-btn').disabled = false;
                             return;
                         }
                         const urlParams = new URLSearchParams(window.location.search);
@@ -581,6 +653,8 @@
             const player2Element = document.getElementById('player2');
 
             if (player2) {
+                player2Element.style.position = 'relative'; 
+
                 player2Element.querySelector('img').src = player2.avatar || '';
                 player2Element.querySelector('p').textContent = player2.name || 'Player 2';
 
@@ -589,10 +663,9 @@
 
                 if (isOwner && !existingKickButton) {
                     const kickButton = document.createElement('button');
-                    kickButton.classList.add('btn', 'btn-danger', 'kick-btn', 'btn-sm', 'mt-2');
-                    kickButton.textContent = 'Kick';
+                    kickButton.classList.add('kick-btn');
+                    kickButton.textContent = '❌';
 
-                    // Nếu bắt đầu ẩn btn kick
                     if (gameStarted) {
                         kickButton.style.display = 'none';
                     }
@@ -674,7 +747,7 @@
 
             if (playerIndex === 0) {
                 document.getElementById('status-text-player1').textContent = isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng';
-                document.getElementById('ready-btn').disabled = isReady;
+                document.getElementById('ready-btn').disabled = isReady && guestId === socket.id; 
             } else if (playerIndex === 1) {
                 document.getElementById('status-text-player2').textContent = isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng';
             }
@@ -698,16 +771,6 @@
             }
         });
 
-        socket.on('update-ready-status', ({ guestId, isReady }) => {
-            const playerIndex = players.findIndex(player => player.guestId === guestId);
-
-            if (playerIndex === 0) {
-                document.getElementById('status-text-player1').textContent = isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng';
-            } else if (playerIndex === 1) {
-                document.getElementById('status-text-player2').textContent = isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng';
-            }
-        });
-
         socket.on('reset-ready-status', () => {
             document.getElementById('status-text-player1').textContent = 'Chưa sẵn sàng';
             document.getElementById('status-text-player2').textContent = 'Chưa sẵn sàng';
@@ -715,23 +778,30 @@
         });
 
         socket.on('player-ready', ({ guestId, players }) => {
-            // console.log(`Guest ${guestId} is ready.`);
             players.forEach(player => {
                 if (player.guestId === guestId) {
                     console.log(`${player.name} is ready`);
                 }
             });
 
-            if (players.every(player => player.isReady)) {
+            const allReady = players.every(player => player.isReady);
+            if (allReady) {
                 gameStarted = true;
+                io.to(room).emit('game-start', { turn: rooms[room].turn });
                 console.log('Game is ready to start.');
             }
         });
 
+
         socket.on('game-start', ({ turn }) => {
+            const notReadyMessage = document.getElementById('not-ready-message');
+            if (notReadyMessage) {
+                notReadyMessage.textContent = '';
+                notReadyMessage.classList.add('hidden'); 
+            }
             gameStarted = true;
             currentTurn = turn;
-            // Xóa bàn cờ trên giao diện
+            document.getElementById('ready-btn').disabled = true;
             const cells = document.querySelectorAll('.cell');
             cells.forEach(cell => {
                 cell.textContent = '';
