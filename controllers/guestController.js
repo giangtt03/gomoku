@@ -17,25 +17,35 @@ const guestController = (io) => {
         createGuest: async (req, res) => {
             try {
                 const guestId = crypto.randomUUID();
-                const guestName = generateRandomGuestName();
+                let guestName = generateRandomGuestName();
+        
+                let existingGuest = await Guest.findOne({ guestName });
+                while (existingGuest) {
+                    console.log(`Guest name "${guestName}" đã tồn tại`);
+                    guestName = generateRandomGuestName();
+                    existingGuest = await Guest.findOne({ guestName });
+                }
+        
                 const guest = new Guest({
                     guestId,
                     guestName,
                     status: 'online'
                 });
-
+        
                 await guest.save();
                 res.status(201).json({ guestId, guestName, message: 'Guest created successfully' });
-
+        
                 setImmediate(() => {
                     io.emit('guestStatus', { guestId, status: 'online' });
                     io.emit('guest-created', guestId);
-                    console.log(`Guest created with ID: ${guestId}`);});
+                    console.log(`Guest created with ID: ${guestId}`);
+                });
             } catch (error) {
-                console.error('Error creating guest:', error)
+                console.error('Error creating guest:', error);
                 res.status(500).json({ message: 'Error creating guest', error });
             }
         },
+        
 
         getGuestById: async (req, res) => {
             const { guestId } = req.params;

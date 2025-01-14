@@ -357,11 +357,11 @@
         <div id="player-info" class="row justify-content-between ">
             <div id="player1" class="col text-center">
                 <img id="player1-avatar" src="" alt="Player 1" class="" width="50" height="50">
-                <p id="player1-name">Player 1</p>
+                <p id="player1-name"></p>
                 <p id="status-text-player1">Chưa sẵn sàng</p>
             </div>
             <div id="player2" class="col text-center">
-                <img id="player1-avatar" src="" alt="Player 1" class="" width="50" height="50">
+                <img id="player2-avatar" src="" alt="Player 2" width="50" height="50">
                 <p id="player2-name"></p>
                 <p id="status-text-player2">Chưa sẵn sàng</p>
             </div>
@@ -445,19 +445,16 @@
             document.getElementById('players-content').classList.add('d-none');
 
         });
-
         document.getElementById('btn-settings').addEventListener('click', () => {
             document.getElementById('chat-content').classList.add('d-none');
             document.getElementById('settings-content').classList.remove('d-none');
             document.getElementById('players-content').classList.add('d-none');
         });
-
         document.getElementById('btn-players').addEventListener('click', () => {
             document.getElementById('chat-content').classList.add('d-none');
             document.getElementById('settings-content').classList.add('d-none');
             document.getElementById('players-content').classList.remove('d-none');
         });
-
         document.addEventListener('DOMContentLoaded', () => {
             const emojiButton = document.getElementById('emoji-button');
             const emojiList = document.getElementById('emoji-list');
@@ -466,19 +463,29 @@
             emojiButton.addEventListener('click', () => {
                 emojiList.classList.toggle('d-none');
             });
-
             document.querySelectorAll('.emoji').forEach(emoji => {
                 emoji.addEventListener('click', (e) => {
                     chatText.value += e.target.textContent;
                     emojiList.classList.add('d-none');
                 });
             });
-
             document.addEventListener('click', (e) => {
                 if (!emojiList.contains(e.target) && e.target !== emojiButton) {
                     emojiList.classList.add('d-none');
                 }
             });
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const guestId = urlParams.get('guestId') || sessionStorage.getItem('guestId');
+            const userId = urlParams.get('userId') || sessionStorage.getItem('userId');
+
+            if (guestId) sessionStorage.setItem('guestId', guestId);
+            if (userId) sessionStorage.setItem('userId', userId);
+
+            setupPlayerInfo(guestId, userId); // Thiết lập thông tin người chơi
+            createBoard(guestId, userId);    // Tạo bảng chơi
         });
 
         let playerNumber = null;
@@ -547,11 +554,15 @@
         });
 
         socket.on('win', (winner) => {
-            const winningPlayer = players.find(player => player.guestId === winner);
+            // const winningPlayer = players.find(player => player.guestId === winner || player.userId === winner);
+            const winningPlayer = players.find(player => player.playerId === winner);
             const winnerName = winningPlayer ? winningPlayer.name : winner;
+            console.log('Players:', players);
+            console.log('Winner ID:', winner);
+
             resetConfirmation.style.display = 'block';
             gameStatus.style.display = 'block';
-            // console.log('Winning player:', winningPlayer);
+            console.log('Winning player:', winningPlayer);
             winnerMessage.textContent = `Winner: ${winnerName}`;
             gameStarted = false;
             startCountdown();
@@ -592,14 +603,15 @@
             });
         });
 
-        const fetchGuestData = async (guestId) => {
+        const fetchPlayerData = async (playerId, playerType) => {
             try {
-                const response = await fetch(`/go/guest/${guestId}`);
-                if (!response.ok) throw new Error('Failed to fetch guest data');
+                const endpoint = playerType === 'guest' ? `/go/guest/${playerId}` : `/t/${playerId}`;
+                const response = await fetch(endpoint);
+                if (!response.ok) throw new Error('Failed to fetch player data');
                 const data = await response.json();
-                return data.guest;
+                return playerType === 'guest' ? data.guest : data.user;
             } catch (error) {
-                console.error('Error fetching guest data:', error);
+                console.error('Error fetching player data:', error);
                 return null;
             }
         };
@@ -607,16 +619,33 @@
         const setupPlayerInfo = async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const guestId = urlParams.get('guestId');
-            const guest = await fetchGuestData(guestId);
+            const userId = urlParams.get('userId');
+            const playerId = guestId || userId;
+            const playerType = guestId ? 'guest' : 'user';
+            // console.log('Setting up player info:', { guestId, userId, playerId, playerType });
+            try {
+                const player = await fetchPlayerData(playerId, playerType);
 
-            if (guest) {
-                document.getElementById('player1-avatar').src = guest.avatar || '';
-                document.getElementById('player1-name').textContent = guest.guestName || '';
-                socket.emit('player-info', { guestId });
+                if (!player) {
+                    console.error('No player data found for:', { guestId, userId });
+                    return;
+                }
+
+                // console.log('Player fetched:', player);
+
+                const avatarElement = document.getElementById('player1-avatar');
+                const nameElement = document.getElementById('player1-name');
+
+                if (avatarElement) avatarElement.src = player.avatar || '';
+                if (nameElement) nameElement.textContent = player.guestName || player.username || '';
+
+                socket.emit('player-info', { guestId, userId });
+                socket.emit('join-room', { playerId });
+            } catch (error) {
+                console.error('Error setting up player info:', error);
             }
         };
-
-        const createBoard = () => {
+        const createBoard = (guestId, userId) => {
             board.innerHTML = '';
             for (let i = 0; i < 19; i++) {
                 for (let j = 0; j < 19; j++) {
@@ -624,7 +653,6 @@
                     cell.classList.add('cell');
                     cell.dataset.row = i;
                     cell.dataset.col = j;
-
                     cell.addEventListener('click', () => {
                         if (cell.classList.contains('taken')) {
                             console.log('Invalid move: Cell already taken.');
@@ -632,52 +660,78 @@
                         }
                         if (!gameStarted) {
                             console.log('Invalid move: Game not started.');
-                            document.getElementById('ready-btn').disabled = false;
                             return;
                         }
-                        const urlParams = new URLSearchParams(window.location.search);
-                        const guestId = urlParams.get('guestId');
-                        if (currentTurn !== guestId) {
+                        const playerId = guestId || userId;
+                        if (currentTurn !== playerId) {
                             console.log('Invalid move: Not your turn.');
                             return;
                         }
-                        socket.emit('move', { row: i, col: j, guestId });
+                        socket.emit('move', { row: i, col: j, playerId });
                     });
                     board.appendChild(cell);
                 }
             }
         };
+
         socket.on('player-info', (updatedPlayers) => {
+            // console.log('Updated players:', updatedPlayers);
+
+            // updatedPlayers.forEach((player, index) => {
+            //     console.log(`Player ${index + 1}:`, player);
+            // });
+
+            if (updatedPlayers.length < 2) {
+                console.log('Chưa đủ 2 người chơi!');
+                return;
+            }
             players = updatedPlayers;
             const player2 = players[1];
             const player2Element = document.getElementById('player2');
 
-            if (player2) {
-                player2Element.style.position = 'relative'; 
-
-                player2Element.querySelector('img').src = player2.avatar || '';
-                player2Element.querySelector('p').textContent = player2.name || 'Player 2';
+            if (player2 && player2Element) {
+                player2Element.style.position = 'relative';
+                const avatarElement = player2Element.querySelector('img');
+                const nameElement = player2Element.querySelector('p');
+                if (avatarElement) {
+                    avatarElement.src = player2.avatar || '';
+                } else {
+                    console.error('Avatar Player 2 not found!');
+                }
+                if (nameElement) {
+                    nameElement.textContent = player2.name || 'Player 2';
+                } else {
+                    console.error('Name Player 2 not found!');
+                }
+                document.getElementById('status-text-player2').textContent = 'Chưa sẵn sàng';
 
                 const isOwner = players[0].id === socket.id;
                 const existingKickButton = player2Element.querySelector('.kick-btn');
 
-                if (isOwner && !existingKickButton) {
+                // Xóa btn kick cũ trước khi tạo lại
+                if (existingKickButton) {
+                    existingKickButton.remove();
+                }
+
+                if (isOwner) {
+                    console.log('Creating kick button for Player 2...');
                     const kickButton = document.createElement('button');
                     kickButton.classList.add('kick-btn');
                     kickButton.textContent = '❌';
 
                     if (gameStarted) {
+                        console.log('Game already started, hiding kick button.');
                         kickButton.style.display = 'none';
+                    } else {
+                        kickButton.style.display = 'inline-block';
                     }
 
                     kickButton.addEventListener('click', () => {
-                        socket.emit('kick-player', { guestId: player2.guestId });
+                        console.log('Kick button clicked. Sending kick event for Player 2:', player2);
+                        socket.emit('kick-player', { playerId: player2.playerId });
                     });
-
                     player2Element.appendChild(kickButton);
                 }
-
-                document.getElementById('status-text-player2').textContent = 'Chưa sẵn sàng';
             }
             const player1 = players[0];
             if (player1) {
@@ -693,10 +747,8 @@
             const message = data.message;
             const notificationElement = document.getElementById('kick-notification');
             const messageElement = document.getElementById('kick-message');
-
             messageElement.textContent = message;
             notificationElement.style.display = 'block';
-
             setTimeout(() => {
                 notificationElement.style.display = 'none';
                 window.location.href = '/';
@@ -707,9 +759,8 @@
         // document.getElementById('close-notification').addEventListener('click', () => {
         //     document.getElementById('kick-notification').style.display = 'none';
         // });
-
-        socket.on('player-kicked', ({ guestId }) => {
-            players = players.filter(player => player.guestId !== guestId);
+        socket.on('player-kicked', ({ guestId, userId }) => {
+            players = players.filter(player => player.guestId !== guestId && player.userId !== userId);
 
             const player2Element = document.getElementById('player2');
             const player1Element = document.getElementById('player1');
@@ -736,20 +787,9 @@
                 players.forEach((player, index) => {
                     const listItem = document.createElement('li');
                     listItem.classList.add('list-group-item', 'd-flex', 'justify-content-between', 'align-items-center');
-                    listItem.textContent = `${player.name || `Player ${index + 1}`} (${player.guestId})`;
+                    listItem.textContent = `${player.name || `Player ${index + 1}`} (${player.guestId || player.userId})`;
                     playersList.appendChild(listItem);
                 });
-            }
-        });
-
-        socket.on('update-ready-status', ({ guestId, isReady }) => {
-            const playerIndex = players.findIndex(player => player.guestId === guestId);
-
-            if (playerIndex === 0) {
-                document.getElementById('status-text-player1').textContent = isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng';
-                document.getElementById('ready-btn').disabled = isReady && guestId === socket.id; 
-            } else if (playerIndex === 1) {
-                document.getElementById('status-text-player2').textContent = isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng';
             }
         });
 
@@ -757,19 +797,43 @@
             console.log('Reset Ready Status triggered');
         });
 
+        socket.on('update-ready-status', ({ playerId, isReady }) => {
+            const playerElement = document.querySelector(`[data-player-id="${playerId}"]`);
+            if (playerElement) {
+                const statusElement = playerElement.querySelector('.player-status');
+                statusElement.textContent = isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng';
+                statusElement.classList.toggle('text-success', isReady);
+                statusElement.classList.toggle('text-danger', !isReady);
+            }
+            console.log(`Player ${playerId} ready status updated to: ${isReady}`);
+        });
+
         const readyButton = document.getElementById('ready-btn');
+        readyButton.addEventListener('click', () => {
+            console.log('Button Sẵn sàng đã được click');
+            const playerId = sessionStorage.getItem('guestId') || sessionStorage.getItem('userId');
+            if (!playerId) {
+                alert('Bạn chưa đăng nhập hoặc tham gia với tư cách khách!');
+                return;
+            }
+
+            console.log('Emitting player-ready with:', { playerId });
+            socket.emit('player-ready', { playerId });
+            readyButton.disabled = true;
+        });
+
         const statusTextPlayer1 = document.getElementById('status-text-player1');
         const statusTextPlayer2 = document.getElementById('status-text-player2');
 
-        readyButton.addEventListener('click', () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const guestId = urlParams.get('guestId');
+        // readyButton.addEventListener('click', () => {
+        //     const urlParams = new URLSearchParams(window.location.search);
+        //     const guestId = urlParams.get('guestId');
 
-            if (guestId) {
-                socket.emit('player-ready', { guestId });
-                readyButton.disabled = true;
-            }
-        });
+        //     if (guestId) {
+        //         socket.emit('player-ready', { guestId });
+        //         readyButton.disabled = true;
+        //     }
+        // });
 
         socket.on('reset-ready-status', () => {
             document.getElementById('status-text-player1').textContent = 'Chưa sẵn sàng';
@@ -777,9 +841,13 @@
             document.getElementById('ready-btn').disabled = false;
         });
 
-        socket.on('player-ready', ({ guestId, players }) => {
+        socket.on('player-ready', ({ guestId, userId, players }) => {
+            console.log('Received player-ready event:', { guestId, userId, players });
+
+            const playerId = guestId || userId;
+
             players.forEach(player => {
-                if (player.guestId === guestId) {
+                if (player.guestId === playerId || player.userId === playerId) {
                     console.log(`${player.name} is ready`);
                 }
             });
@@ -787,17 +855,21 @@
             const allReady = players.every(player => player.isReady);
             if (allReady) {
                 gameStarted = true;
-                io.to(room).emit('game-start', { turn: rooms[room].turn });
-                console.log('Game is ready to start.');
+
+                if (typeof room !== 'undefined') {
+                    io.to(room).emit('game-start', { turn: rooms[room].turn });
+                    console.log('All players are ready. Game starting...');
+                } else {
+                    console.error('Room is not defined.');
+                }
             }
         });
-
 
         socket.on('game-start', ({ turn }) => {
             const notReadyMessage = document.getElementById('not-ready-message');
             if (notReadyMessage) {
                 notReadyMessage.textContent = '';
-                notReadyMessage.classList.add('hidden'); 
+                notReadyMessage.classList.add('hidden');
             }
             gameStarted = true;
             currentTurn = turn;
@@ -807,6 +879,10 @@
                 cell.textContent = '';
                 cell.classList.remove('taken');
             });
+
+            const startingPlayer = players.find(player => player.playerId === turn);
+            console.log(`${startingPlayer.name} starts the game.`);
+
             // console.log(`Game started. Turn: ${turn}`);
             const kickButtons = document.querySelectorAll('.kick-btn');
             kickButtons.forEach(button => {
@@ -841,11 +917,11 @@
 
         function sendMessage() {
             const message = chatText.value.trim();
-            const urlParams = new URLSearchParams(window.location.search);
-            const guestId = urlParams.get('guestId');
+            const playerId = sessionStorage.getItem('guestId') || sessionStorage.getItem('userId');
+            const room = sessionStorage.getItem('room');
 
-            if (message && guestId) {
-                socket.emit('chat-message', { guestId, message });
+            if (message && playerId) {
+                socket.emit('chat-message', { playerId, message, room });
                 chatText.value = '';
             }
         }

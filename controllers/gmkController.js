@@ -1,16 +1,21 @@
 const Guest = require('../models/Guest');
+const User = require('../models/User')
 let rooms = {};
 let roomCounter = 0;
 let socketRoomMap = {};
 
 const findAvailableRoom = () => {
     for (const room in rooms) {
+        console.log(`Checking room ${room}: ${rooms[room].players.length} players`);
         if (rooms[room].players.length < 2) {
+            console.log(`Room ${room} found with available space for players.`);
             return room;
         }
     }
+    console.log("No available room found. Creating a new room.");
     return null;
 };
+
 
 const checkWin = (board, row, col, player) => {
     const directions = [
@@ -51,75 +56,121 @@ const checkWin = (board, row, col, player) => {
 
 
 const setupGame = (socket, io) => {
-    let room = findAvailableRoom();
-    if (!room) {
-        room = `room-${roomCounter++}`;
-        rooms[room] = {
-            players: [],
-            board: Array(19).fill().map(() => Array(19).fill(0)),
-            turn: null,
-            readyPlayers: 0,
-            resetVotes: {},
-            swapTurn: false
-        };
-    }
-
-    socketRoomMap[socket.id] = room; // Map the socket to the room
-    socket.join(room);
-
-    socket.on('player-info', async ({ guestId }) => {
-        const guest = await Guest.findOne({ guestId });
-        if (!rooms[room]) {
-            console.error(`Phòng ${room} không tồn tại!`);
-            return;
+    socket.on('join-room', () => {
+        let room = findAvailableRoom();
+        if (!room) {
+            room = `room-${roomCounter++}`;
+            rooms[room] = {
+                players: [],
+                board: Array(19).fill().map(() => Array(19).fill(0)),
+                turn: null,
+                readyPlayers: 0,
+                resetVotes: {},
+                swapTurn: false
+            };
+            console.log(`Created a new room: ${room}`);
+        } else {
+            console.log(`Joining existing room: ${room}`);
         }
-        if (guest) {
+
+        socketRoomMap[socket.id] = room;
+        socket.join(room);
+        console.log(`Player ${socket.id} joined room ${room}`);
+
+        socket.on('player-info', async ({ guestId, userId }) => {
+            const playerId = guestId || userId;
+            const playerType = guestId ? 'guest' : 'user';
+
+            console.log(`Received player info: ${playerType} with ID ${playerId}`);
+
+            let playerInfo;
+            if (playerType === 'guest') {
+                playerInfo = await Guest.findOne({ guestId });
+            } else {
+                playerInfo = await User.findById(userId);
+            }
+
+            if (!playerInfo || !rooms[room]) {
+                console.error(`not found rooms or plr ${room} `);
+                return;
+            }
+
+            const existingPlayer = rooms[room].players.find(p => p.id === socket.id);
+            if (existingPlayer) return;
+
             rooms[room].players.push({
                 id: socket.id,
-                guestId,
-                name: guest.guestName,
-                avatar: guest.avatar,
+                playerId,
+                type: playerType,
+                name: playerInfo.guestName || playerInfo.username,
+                avatar: playerInfo.avatar,
                 isReady: false,
             });
 
             io.to(room).emit('player-info', rooms[room].players);
-
-            if (rooms[room].players.length > 1) {
-                io.to(room).emit('update-kick-button', { showKick: true });
-            }
-        }
+            console.log(`Broadcasting player-info to room: ${room}`, rooms[room].players);
+            console.log(`Player ${socket.id} joined room ${room}`);
+        });
     });
 
-    socket.on('kick-player', ({ guestId }) => {
+    socket.on('kick-player', ({ playerId }) => {
         const room = socketRoomMap[socket.id];
-        if (!room || !rooms[room]) return;
+        if (!room || !rooms[room]) {
+            console.error(`Room ${room} not found!`);
+            return;
+        }
 
         const roomData = rooms[room];
         const kicker = roomData.players.find(p => p.id === socket.id);
-        const target = roomData.players.find(p => p.guestId === guestId);
+        const target = roomData.players.find(p => p.playerId === playerId);
 
-        if (kicker && roomData.players[0].id === socket.id && target) {
-            console.log(`Kicker: ${kicker.name} đang đuổi target: ${target.name}`);
-            roomData.players = roomData.players.filter(p => p.guestId !== guestId);
-
-            roomData.players.forEach(player => player.isReady = false);
-
-            io.to(target.id).emit('kicked', { message: 'Bạn đã bị đuổi khỏi phòng😭!' });
-            io.sockets.sockets.get(target.id)?.leave(room);
-
-            io.to(room).emit('player-kicked', { guestId });
-            io.to(room).emit('reset-ready-status');
+        if (!kicker) {
+            console.error(`Kicker not found in room ${room}`);
+            return;
         }
+
+        if (!target) {
+            console.error(`Target player ${playerId} not found in room ${room}`);
+            return;
+        }
+
+        if (roomData.players[0].id !== socket.id) {
+            console.error(`Player ${socket.id} is not the room owner and cannot kick.`);
+            return;
+        }
+
+        roomData.players = roomData.players.filter(p => p.playerId !== playerId);
+
+        io.to(target.id).emit('kicked', { message: 'Bạn đã bị đuổi khỏi phòng😭!' });
+        io.sockets.sockets.get(target.id)?.leave(room);
+
+        console.log(`Player ${target.id} kicked by ${socket.id} from room ${room}`);
+
+        io.to(room).emit('player-kicked', { playerId });
     });
 
-    const updatePlayerReadyStatus = (room, guestId, isReady, io) => {
+
+    const updatePlayerReadyStatus = (room, playerId, isReady, io) => {
         if (!rooms[room]) return;
 
-        const player = rooms[room].players.find(p => p.guestId === guestId);
+        const player = rooms[room].players.find(p => p.playerId === playerId);
         if (player) {
             player.isReady = isReady;
-            io.to(room).emit('update-ready-status', { guestId, isReady });
+            console.log(`Player ${player.name} isReady set to: ${player.isReady}`);
+            io.to(room).emit('update-ready-status', { playerId, isReady });
             // console.log(`Player ${guestId} is now ${isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng'}`);
+            console.log(`Player ${player.name} is now ${isReady ? 'ready' : 'not ready'}`);
+
+            // Kiểm tra nếu tất cả người chơi đều sẵn sàng
+            if (rooms[room].players.every(p => p.isReady)) {
+                rooms[room].turn = rooms[room].players[0].playerId;
+                rooms[room].board = Array(19).fill().map(() => Array(19).fill(0));
+                io.to(room).emit('game-start', {
+                    turn: rooms[room].turn,
+                    players: rooms[room].players
+                });
+                console.log(`Game started in room ${room}. Player ${rooms[room].players[0].name} starts the game.`);
+            }
         }
     };
 
@@ -128,19 +179,36 @@ const setupGame = (socket, io) => {
 
         rooms[room].players.forEach(player => (player.isReady = false));
         io.to(room).emit('reset-ready-status');
-        // console.log(`Reset ready status for room: ${room}`);
+        console.log(`Reset ready status for room: ${room}`);
     };
 
-    socket.on('player-ready', ({ guestId }) => {
+    socket.on('player-ready', ({ playerId }) => {
         const room = socketRoomMap[socket.id];
-        if (room) {
-            updatePlayerReadyStatus(room, guestId, true, io);
+        console.log(`Received player-ready for room: ${room}`);
+        // if (!room || !rooms[room]) return;
+        if (!room || !rooms[room]) {
+            console.error('Room not found or invalid:', room);
+            return;
+        }
 
-            if (rooms[room].players.every(player => player.isReady)) {
+        const player = rooms[room].players.find(p => p.playerId === playerId);
+        if (player) {
+            player.isReady = true;
+            console.log(`Player ${player.name} is ready in room: ${room}`);
+            io.to(room).emit('update-ready-status', { playerId, isReady: true });
+
+            const allReady = rooms[room].players.every(p => p.isReady);
+            console.log(`All players ready: ${allReady}`);
+
+            if (allReady) {
+                rooms[room].turn = rooms[room].players[0].playerId;
                 rooms[room].board = Array(19).fill().map(() => Array(19).fill(0));
+                io.to(room).emit('game-start', {
+                    turn: rooms[room].turn,
+                    players: rooms[room].players
+                });
 
-                rooms[room].turn = rooms[room].players[0].guestId;
-                io.to(room).emit('game-start', { turn: rooms[room].turn });
+                console.log(`Game started in room ${room}. Player ${rooms[room].players[0].name} starts the game.`);
             }
         }
     });
@@ -177,52 +245,43 @@ const setupGame = (socket, io) => {
         }
     });
 
-    socket.on('move', ({ row, col, guestId }) => {
-        const room = socketRoomMap[socket.id]; // Retrieve room from mapping
-        if (!room || !rooms[room]) {
-            console.log(`Invalid move: Room not found for socket ${socket.id}`);
-            return;
-        }
+    socket.on('move', ({ row, col, playerId }) => {
+        const room = socketRoomMap[socket.id];
+        if (!room || !rooms[room]) return;
 
         const roomData = rooms[room];
         const board = roomData.board;
+        const player = roomData.players.find(p => p.playerId === playerId);
 
-        if (guestId !== roomData.turn) {
-            // console.log(`Invalid move: Not ${guestId}'s turn`);
+        if (!player || playerId !== roomData.turn) {
             io.to(socket.id).emit('invalid-move', { message: "Not your turn." });
             return;
         }
 
-        if (board[row][col] !== 0) {
-            // console.log(`Invalid move: Cell (${row}, ${col}) is already taken`);
-            io.to(socket.id).emit('invalid-move', { message: "Cell already taken." });
-            return;
-        }
-
-        // Update the board with the move
-        const player = roomData.players.find(p => p.guestId === guestId);
         const playerIndex = roomData.players.indexOf(player);
         board[row][col] = playerIndex + 1;
 
-        const playerSymbol = playerIndex + 1;
-        io.to(room).emit('move', { row, col, guestId, symbol: playerSymbol });
+        io.to(room).emit('move', { row, col, playerId, symbol: playerIndex + 1 });
 
         if (checkWin(board, row, col, playerIndex + 1)) {
-            io.to(room).emit('win', guestId);
-            // console.log(`Player ${guestId} wins!`);
+            io.to(room).emit('win', playerId);
             return;
         }
 
-        // Alternate the turn
-        const nextPlayerIndex = (playerIndex + 1) % roomData.players.length;
-        roomData.turn = roomData.players[nextPlayerIndex].guestId;
-        // console.log(`Player ${guestId} moved. Next turn: ${roomData.turn}`);
-
+        roomData.turn = roomData.players[(playerIndex + 1) % roomData.players.length].playerId;
         io.to(room).emit('turn-changed', roomData.turn);
     });
 
-    socket.on('chat-message', ({ guestId, message }) => {
-        const player = rooms[room].players.find(p => p.guestId === guestId);
+
+    socket.on('chat-message', ({ playerId, message }) => {
+        const room = socketRoomMap[socket.id];
+
+        if (!room || !rooms[room]) {
+            console.error('Room not found or invalid');
+            return;
+        }
+
+        const player = rooms[room].players.find(p => p.playerId === playerId);
         if (player) {
             io.to(room).emit('chat-message', { player: player.name, message });
         }
@@ -237,6 +296,7 @@ const setupGame = (socket, io) => {
             roomData.players = roomData.players.filter(p => p.id !== socket.id);
 
             if (roomData.players.length === 0) {
+                console.log(`Room ${room} is empty, deleting the room.`);
                 delete rooms[room];
             } else {
                 resetPlayerReadyStatus(room, io);
@@ -248,6 +308,8 @@ const setupGame = (socket, io) => {
                 });
             }
             delete socketRoomMap[socket.id];
+            console.log(`Player ${socket.id} disconnected from room ${room}`);
+
         }
     });
 
@@ -262,7 +324,7 @@ const handleReset = (room, io) => {
     // sưap turn
     rooms[room].swapTurn = !rooms[room].swapTurn;
     const firstPlayerIndex = rooms[room].swapTurn ? 1 : 0;
-    rooms[room].turn = rooms[room].players[firstPlayerIndex].guestId;
+    rooms[room].turn = rooms[room].players[firstPlayerIndex].playerId;
 
     rooms[room].resetVotes = {};
     io.to(room).emit('reset', {

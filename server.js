@@ -15,6 +15,9 @@ const app = express();
 app.use(cors());
 
 app.use('/', express.static('public/atau.jpg'));
+// app.get('/', (req, res) => {
+//     res.sendFile(__dirname + '/public/atau.jpg');
+// });
 
 dotenv.config();
 app.use(morgan('dev'));
