@@ -7,6 +7,7 @@ const morgan = require('morgan');
 const mongoose = require('mongoose');
 const methodOverride = require('method-override');
 const favicon = require('express-favicon');
+const path = require('path');
 
 const http = require('http');
 const { Server } = require('socket.io');
@@ -52,6 +53,9 @@ const io = new Server(server, {
         methods: ["GET", "POST"]
     }
 });
+
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'ejs');
 
 const PORT = process.env.PORT || 3000;
 

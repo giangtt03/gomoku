@@ -58,6 +58,8 @@
         </div>
     </nav>
 
+    
+
     <!-- Main Content -->
     <main class="container text-center mt-5">
         <h1 class="fw-bold text-white">Welcome to Gomoku</h1>
@@ -106,7 +108,28 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        const socket = io.connect('http://localhost:8002');
+        const socket = io('http://localhost:8002', {
+            autoConnect: false,
+            reconnection: true
+        });
+
+        const savedSocketId = sessionStorage.getItem('socketId');
+        if (savedSocketId) {
+            socket.auth = { socketId: savedSocketId };
+            console.log(`Reconnecting with old socketId: ${savedSocketId}`);
+        }
+
+        socket.connect();
+
+        socket.on('connect', () => {
+            console.log(`Connected with socketId: ${socket.id}`);
+            sessionStorage.setItem('socketId', socket.id); // Lưu socketId mới nhất
+        });
+
+        socket.on('disconnect', (reason) => {
+            console.log(`Socket disconnected due to: ${reason}`);
+        });
+
 
         document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('guestBtn').addEventListener('click', joinAsGuest);
@@ -118,7 +141,8 @@
                 .then(response => response.json())
                 .then(data => {
                     sessionStorage.setItem('guestId', data.guestId);
-                    window.location.href = `/go/play?guestId=${data.guestId}`;
+                    const socketId = sessionStorage.getItem('socketId');// lay socketId hien tai
+                    window.location.href = `/go/play?guestId=${data.guestId}&socketId=${socketId}`;
                 })
                 .catch(error => console.error('Error:', error));
         }
@@ -140,15 +164,14 @@
                 })
                 .then(data => {
                     sessionStorage.setItem('userId', data.user._id);
-                    window.location.href = `/go/play?userId=${data.user._id}`;
+                    const socketId = sessionStorage.getItem('socketId');
+                    window.location.href = `/go/play?userId=${data.user._id}&socketId=${socketId}`;
                 })
                 .catch(error => {
                     console.error('Error:', error);
                     alert('Login failed: ' + error.message);
                 });
         }
-
-
     </script>
 </body>
 

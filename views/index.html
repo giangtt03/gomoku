@@ -356,12 +356,12 @@
         <!-- <h1 class="mb-4">Gomoku Realtime</h1> -->
         <div id="player-info" class="row justify-content-between ">
             <div id="player1" class="col text-center">
-                <img id="player1-avatar" src="" alt="Player 1" class="" width="50" height="50">
+                <img id="player1-avatar" src="/placeholder.svg" alt="Player 1" class="" width="50" height="50">
                 <p id="player1-name"></p>
                 <p id="status-text-player1">Chưa sẵn sàng</p>
             </div>
             <div id="player2" class="col text-center">
-                <img id="player2-avatar" src="" alt="Player 2" width="50" height="50">
+                <img id="player2-avatar" src="/placeholder.svg" alt="Player 2" width="50" height="50">
                 <p id="player2-name"></p>
                 <p id="status-text-player2">Chưa sẵn sàng</p>
             </div>
@@ -480,13 +480,44 @@
             const urlParams = new URLSearchParams(window.location.search);
             const guestId = urlParams.get('guestId') || sessionStorage.getItem('guestId');
             const userId = urlParams.get('userId') || sessionStorage.getItem('userId');
+            const socketId = urlParams.get('socketId') || sessionStorage.getItem('socketId');
 
             if (guestId) sessionStorage.setItem('guestId', guestId);
             if (userId) sessionStorage.setItem('userId', userId);
+            if (socketId) sessionStorage.setItem('socketId', socketId);
+
+            const socket = io('http://localhost:8002', {
+                autoConnect: false,
+                reconnection: true,
+                reconnectionAttempts: 10,
+                reconnectionDelay: 3000,
+                transports: ['websocket'], // Giảm thiểu lỗi transport close
+            });
+
+            // Nếu có socketId cũ, ép socket mới sử dụng nó
+            if (socketId) {
+                socket.auth = { socketId };
+                console.log(`Reconnecting with old socketId: ${socketId}`);
+            }
+
+            socket.connect();
+
+            socket.on('connect', () => {
+                console.log(`Connected with socketId: ${socket.id}`);
+                sessionStorage.setItem('socketId', socket.id);
+            });
+
+            socket.on('disconnect', (reason) => {
+                console.log(`Socket disconnected due to: ${reason}`);
+                if (reason === 'transport close') {
+                    console.log('Attempting to reconnect...');
+                }
+            });
 
             setupPlayerInfo(guestId, userId); // Thiết lập thông tin người chơi
-            createBoard(guestId, userId);    // Tạo bảng chơi
+            createBoard(guestId, userId); // Tạo bảng chơi
         });
+
 
         let playerNumber = null;
         let currentTurn = 1;
@@ -620,6 +651,8 @@
             const urlParams = new URLSearchParams(window.location.search);
             const guestId = urlParams.get('guestId');
             const userId = urlParams.get('userId');
+            const socketId = urlParams.get('socketId') || sessionStorage.getItem('socketId');
+
             const playerId = guestId || userId;
             const playerType = guestId ? 'guest' : 'user';
             // console.log('Setting up player info:', { guestId, userId, playerId, playerType });
@@ -751,7 +784,7 @@
             notificationElement.style.display = 'block';
             setTimeout(() => {
                 notificationElement.style.display = 'none';
-                window.location.href = '/';
+                window.location.href = 'http://localhost:8002/rooms';
             }, 1500);
 
         });
@@ -759,35 +792,39 @@
         // document.getElementById('close-notification').addEventListener('click', () => {
         //     document.getElementById('kick-notification').style.display = 'none';
         // });
-        socket.on('player-kicked', ({ guestId, userId }) => {
-            players = players.filter(player => player.guestId !== guestId && player.userId !== userId);
-
+        
+        // FIX: Update player-kicked event handler to use playerId instead of guestId/userId
+        socket.on('player-kicked', ({ playerId }) => {
+            console.log('Player kicked event received:', playerId);
+            
+            // Filter players array
+            players = players.filter(player => player.playerId !== playerId);
+            
             const player2Element = document.getElementById('player2');
-            const player1Element = document.getElementById('player1');
-
-            if (players.length === 1) {
+            
+            // Clear player 2 UI elements
+            if (player2Element) {
                 player2Element.querySelector('img').src = '';
                 player2Element.querySelector('p').textContent = '';
                 document.getElementById('status-text-player2').textContent = 'Chưa có người chơi';
-
-                document.getElementById('status-text-player1').textContent = 'Chưa sẵn sàng';
-                document.getElementById('ready-btn').disabled = false;
-
-                const kickButton = player2Element.querySelector('.kick-btn');
-                if (kickButton) kickButton.remove();
             }
-
-            if (players.length === 1 && players[0].guestId === socket.id) {
-                document.getElementById('status-text-player1').textContent = 'Chưa có người chơi';
-            }
-
+            
+            // Update ready button state
+            document.getElementById('ready-btn').disabled = false;
+            document.getElementById('status-text-player1').textContent = 'Chưa sẵn sàng';
+            
+            // Remove kick button if it exists
+            const kickButton = player2Element.querySelector('.kick-btn');
+            if (kickButton) kickButton.remove();
+            
+            // Update players list in the sidebar
             const playersList = document.getElementById('players-list');
             if (playersList) {
-                playersList.innerHTML = '';
+                playersList.innerHTML = '<p>List user:</p>';
                 players.forEach((player, index) => {
                     const listItem = document.createElement('li');
                     listItem.classList.add('list-group-item', 'd-flex', 'justify-content-between', 'align-items-center');
-                    listItem.textContent = `${player.name || `Player ${index + 1}`} (${player.guestId || player.userId})`;
+                    listItem.textContent = `${player.name || `Player ${index + 1}`} (${player.playerId})`;
                     playersList.appendChild(listItem);
                 });
             }

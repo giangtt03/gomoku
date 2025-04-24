@@ -29,15 +29,14 @@ const guestController = (io) => {
                 const guest = new Guest({
                     guestId,
                     guestName,
-                    status: 'online'
+                    status: 'online',
                 });
-        
                 await guest.save();
-                res.status(201).json({ guestId, guestName, message: 'Guest created successfully' });
         
+                res.status(201).json({ guestId, guestName, message: 'Guest created successfully' });
                 setImmediate(() => {
                     io.emit('guestStatus', { guestId, status: 'online' });
-                    io.emit('guest-created', guestId);
+                    io.emit('guest-created', { guestId, guestName });
                     console.log(`Guest created with ID: ${guestId}`);
                 });
             } catch (error) {
@@ -45,6 +44,7 @@ const guestController = (io) => {
                 res.status(500).json({ message: 'Error creating guest', error });
             }
         },
+        
         
 
         getGuestById: async (req, res) => {
