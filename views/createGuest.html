@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gomoku Game</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            display: flex;
+            background: linear-gradient(135deg, #322f2f, #3e416f);
+            flex-direction: column;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        main {
+            flex: 1;
+        }
+
+        .d-none {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-success-subtle">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Logo</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false"
+                aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="#">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">Forum</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">Privacy</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">Support</a>
+                    </li>
+                </ul>
+                <form class="d-flex">
+                    <input class="form-control me-2" type="search" placeholder="Search" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">Search</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    
+
+    <!-- Main Content -->
+    <main class="container text-center mt-5">
+        <h1 class="fw-bold text-white">Welcome to Gomoku</h1>
+        <div class="mt-4">
+            <button id="loginBtn" class="btn btn-secondary btn-lg me-2" data-bs-toggle="modal"
+                data-bs-target="#loginModal">Login</button>
+            <button id="guestBtn" class="btn btn-secondary btn-lg">Join as Guest</button>
+        </div>
+        <div id="guest-info" class="mt-4 text-secondary"></div>
+    </main>
+
+    <!-- login -->
+    <div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="loginModalLabel">Login</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="loginForm">
+                        <div class="mb-3">
+                            <label for="emailInput" class="form-label">Email address</label>
+                            <input type="email" class="form-control" id="emailInput" placeholder="Enter your email"
+                                required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="passwordInput" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="passwordInput"
+                                placeholder="Enter your password" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Login</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- Footer -->
+    <footer class="bg-success-subtle text-center py-3">
+        <span style="font-size: 95%;">Copyright 2024 @giangtt.</span>
+    </footer>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const socket = io('https://gomoku-u3xz.onrender.com', {
+            autoConnect: false,
+            reconnection: true
+        });
+
+        const savedSocketId = sessionStorage.getItem('socketId');
+        if (savedSocketId) {
+            socket.auth = { socketId: savedSocketId };
+            console.log(`Reconnecting with old socketId: ${savedSocketId}`);
+        }
+
+        socket.connect();
+
+        socket.on('connect', () => {
+            console.log(`Connected with socketId: ${socket.id}`);
+            sessionStorage.setItem('socketId', socket.id); // Lưu socketId mới nhất
+        });
+
+        socket.on('disconnect', (reason) => {
+            console.log(`Socket disconnected due to: ${reason}`);
+        });
+
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.getElementById('guestBtn').addEventListener('click', joinAsGuest);
+            document.getElementById('loginForm').addEventListener('submit', handleLoginFormSubmit);
+        });
+
+        function joinAsGuest() {
+            fetch('/go/guest', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    sessionStorage.setItem('guestId', data.guestId);
+                    const socketId = sessionStorage.getItem('socketId');// lay socketId hien tai
+                    window.location.href = `/go/play?guestId=${data.guestId}&socketId=${socketId}`;
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function handleLoginFormSubmit(event) {
+            event.preventDefault(); // Ngăn hành vi submit mặc định
+
+            const email = document.getElementById('emailInput').value;
+            const password = document.getElementById('passwordInput').value;
+
+            fetch('/t/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password }),
+            })
+                .then(response => {
+                    if (!response.ok) throw new Error('Invalid login credentials');
+                    return response.json();
+                })
+                .then(data => {
+                    sessionStorage.setItem('userId', data.user._id);
+                    const socketId = sessionStorage.getItem('socketId');
+                    window.location.href = `/go/play?userId=${data.user._id}&socketId=${socketId}`;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Login failed: ' + error.message);
+                });
+        }
+    </script>
+</body>
+
+</html>

@@ -5,38 +5,173 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gomoku Realtime</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
+            height: 100vh;
+            /* background-color: #322f2f; */
+            background: linear-gradient(135deg, #322f2f, #3e416f);
+            color: white;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
             display: flex;
-            flex-direction: column;
-            align-items: center; /* Căn giữa theo chiều ngang */
-            justify-content: center; /* Căn giữa theo chiều dọc */
-            height: 100vh; /* Chiều cao của màn hình */
-            margin: 0; /* Loại bỏ margin của body */
-            background-color: #eaeaea; /* Màu nền cho dễ nhìn */
+            justify-content: center;
+            align-items: center;
+        }
+
+        #game-container {
+            display: grid;
+            grid-template-columns: 4fr 2fr;
+            gap: 10px;
+            width: 100%;
+            max-width: 1500px;
+            align-items: center;
         }
 
         #board {
             display: grid;
-            grid-template-columns: repeat(15, 40px);
-            grid-gap: 2px;
-            margin-top: 20px; /* Khoảng cách giữa tiêu đề và bàn cờ */
+            grid-template-columns: repeat(19, 1fr);
+            gap: 1px;
+            width: 100%;
+            max-width: 1000px;
+            height: auto;
+            aspect-ratio: 1;
+            background-color: #b19b9b;
+            border: 2px solid #828282;
+            box-shadow: 0 0 10px rgba(156, 152, 152, 0.5);
         }
 
-        .cell {
-            width: 40px;
-            height: 40px;
-            background-color: #f0f0f0;
+        #chat-section {
+            background-color: #444;
+            width: 100%;
+            max-width: 500px;
+            height: 95%;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
             display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 24px;
-            cursor: pointer;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: stretch;
         }
 
-        #status {
+        #chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            background-color: #555;
+            border-radius: 5px;
+            padding: 10px;
             margin-bottom: 10px;
-            font-size: 20px; /* Tăng kích thước chữ cho dễ đọc */
+            max-height: 690px;
+            min-height: 690px;
+        }
+
+        #chat-input {
+            display: flex;
+            gap: 10px;
+        }
+
+        #player-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            /* background-color: #1c1c1c; */
+            margin-left: 2px;
+            width: 100%;
+            max-width: 1500px;
+            padding: 10px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        #player1 {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            padding: 0;
+            margin: 0;
+        }
+
+        #player2 {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            padding: 0;
+            margin: 0;
+        }
+
+        #player1 img {
+            margin: 0;
+            padding: 0;
+
+        }
+
+        #player2 img {
+            margin: 0;
+            padding: 0;
+        }
+
+        #player2 p {
+            visibility: visible;
+        }
+
+        #ready-btn {
+            margin-bottom: 10px;
+            margin-right: 150px;
+            align-self: center;
+        }
+
+        @media (max-width: 768px) {
+            #game-container {
+                grid-template-columns: 1fr;
+                ;
+                gap: 10px;
+                height: auto;
+            }
+
+            #board {
+                max-width: 100%;
+                width: 100%;
+                aspect-ratio: 1;
+            }
+
+            #chat-section {
+                max-width: 100%;
+                width: 100%;
+                height: auto;
+            }
+
+            #player-info {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+                gap: 15px;
+            }
+
+            #ready-btn {
+                margin: 20px auto;
+            }
+        }
+
+        @media (max-width: 576px) {
+            #chat-messages {
+                max-height: 300px;
+                min-height: 300px;
+            }
+
+            #chat-input {
+                flex-direction: column;
+                gap: 5px;
+            }
+
+            #board {
+                grid-template-columns: repeat(19, minmax(0, 1fr));
+            }
         }
 
         #reset-confirmation {
@@ -45,136 +180,829 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background-color: white;
-            border: 2px solid black;
-            padding: 20px;
+            background: linear-gradient(135deg, #322f2f, #3e416f);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
             z-index: 1000;
+            box-shadow: 0px 10px 20px rgba(0, 0, 0, 0.5);
+            max-width: 400px;
+            width: 90%;
         }
 
-        button {
-            margin: 5px; /* Khoảng cách giữa các nút */
-            padding: 10px 20px; /* Padding cho nút */
+        #reset-confirmation p {
+            margin: 0;
+            padding: 5px 0;
+        }
+
+        #reset-confirmation #winner-message {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        #reset-confirmation .countdown {
+            font-size: 1.2rem;
+            color: #ff6666;
+        }
+
+        #reset-confirmation .button-container {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        #reset-confirmation button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        #reset-confirmation #yes-play-again {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        #reset-confirmation #yes-play-again:hover {
+            background-color: #45a049;
+        }
+
+        #reset-confirmation #no-play-again {
+            background-color: #f44336;
+            color: white;
+        }
+
+        #reset-confirmation #no-play-again:hover {
+            background-color: #e53935;
+        }
+
+        #reset-confirmation #not-ready-message {
+            margin-top: 15px;
+            color: #ff4d4d;
+            font-weight: bold;
+        }
+
+        .cell {
+            width: 100%;
+            aspect-ratio: 1;
+            background-color: #888;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: inset 0 0 2px rgba(90, 88, 88, 0.5);
+            border: 1px solid #c0b9b9;
+        }
+
+        .cell:hover {
+            background-color: #aaa;
+        }
+
+        .cell.taken {
+            background-color: #718f8f;
+            cursor: not-allowed;
+        }
+
+        #game-status {
+            visibility: hidden;
+            display: none;
+        }
+
+        #emoji-list {
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 5px;
+            max-width: 100%;
+            overflow-x: auto;
+            overflow-y: hidden;
+            background-color: #fff;
+            border-radius: 5px;
+            padding: 10px;
+            white-space: nowrap;
+        }
+
+        .emoji {
+            cursor: pointer;
+            font-size: 1.5rem;
+            padding: 5px;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+
+        .emoji:hover {
+            background-color: #ddd;
+        }
+
+        .d-none {
+            display: none;
+        }
+
+        #players-content {
+            max-height: 500px;
+            overflow-y: auto;
+            background-color: #444;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        #players-list .list-group-item {
+            border: none;
+            margin-bottom: 5px;
+        }
+
+        #kick-notification {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #11857d, #6d73c0);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 18px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            display: none;
+            z-index: 9999;
+        }
+
+        .kick-btn {
+            display: none;
+            background-color: transparent;
+            color: red;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            z-index: 10;
+        }
+
+        .kick-btn:hover {
+            color: darkred;
+            transform: scale(1.2);
         }
     </style>
 </head>
 
-<body>
-    <h1>Gomoku Realtime</h1>
-    <div id="status">Waiting for another player...</div>
-    <div id="board"></div>
-
-    <div id="reset-confirmation">
-        <p id="winner-message"></p>
-        <button id="yes-play-again">Yes</button>
-        <button id="no-play-again">No</button>
+<body class="d-flex flex-column align-items-center justify-content-center">
+    <div class="container text-center">
+        <!-- <h1 class="mb-4">Gomoku Realtime</h1> -->
+        <div id="player-info" class="row justify-content-between ">
+            <div id="player1" class="col text-center">
+                <img id="player1-avatar" src="/placeholder.svg" alt="Player 1" class="" width="50" height="50">
+                <p id="player1-name"></p>
+                <p id="status-text-player1">Chưa sẵn sàng</p>
+            </div>
+            <div id="player2" class="col text-center">
+                <img id="player2-avatar" src="/placeholder.svg" alt="Player 2" width="50" height="50">
+                <p id="player2-name"></p>
+                <p id="status-text-player2">Chưa sẵn sàng</p>
+            </div>
+        </div>
+        <button id="ready-btn" class="btn btn btn-secondary mt-3">Sẵn sàng</button>
+        <div id="game-container" class="d-grid">
+            <div id="board" class="my-4"></div>
+            <div id="chat-section">
+                <div id="chat-navigation" class="d-flex justify-content-between mb-3">
+                    <button id="btn-chat" class="btn btn-secondary">Chat</button>
+                    <button id="btn-players" class="btn btn-secondary">Players</button>
+                    <button id="btn-settings" class="btn btn-secondary">Settings</button>
+                </div>
+                <div id="chat-content">
+                    <div id="chat-messages" class="bg-secondary p-3 rounded mb-3 text-start"></div>
+                    <div id="chat-input" class="input-group">
+                        <input type="text" id="chat-text" class="form-control" placeholder="Nhập nội dung chat...">
+                        <button id="emoji-button" class="btn btn-secondary">😀</button>
+                        <button id="send-chat" class="btn btn-secondary">Gửi</button>
+                    </div>
+                    <!-- Emoji unicode -->
+                    <div id="emoji-list" class="d-none p-2 border bg-white" style="position: absolute; z-index: 1000;">
+                        <span class="emoji">😀</span>
+                        <span class="emoji">😁</span>
+                        <span class="emoji">😂</span>
+                        <span class="emoji">🤣</span>
+                        <span class="emoji">😃</span>
+                        <span class="emoji">😭</span>
+                        <span class="emoji">🤯</span>
+                        <span class="emoji">😅</span>
+                        <span class="emoji">😆</span>
+                        <span class="emoji">😍</span>
+                        <span class="emoji">😘</span>
+                        <span class="emoji">😎</span>
+                        <span class="emoji">🐸</span>
+                    </div>
+                </div>
+                <div id="players-content" class="d-none">
+                    <ul id="players-list" class="list-group">
+                        <p>List user:</p>
+                    </ul>
+                </div>
+                <div id="settings-content" class="d-none">
+                    <p>Chức năng đang được phát triển.</p>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
+    <div id="reset-confirmation">
+        <p id="winner-message">Winner: <span id="winner-name">Player 1</span></p>
+        <p class="countdown">Restarting in: <span id="countdown-timer">10</span>s</p>
+        <div class="button-container">
+            <button id="yes-play-again">Yes</button>
+            <button id="no-play-again">No</button>
+        </div>
+        <p id="not-ready-message" class="hidden"></p>
+    </div>
+
+    <div id="game-status">Bắt đầu</div>
+
+    <div id="kick-notification" class="notification" style="display: none;">
+        <p id="kick-message"></p>
+        <!-- <button id="close-notification" class="btn btn-danger btn-sm">Đóng</button> -->
+    </div>
+
     <script>
         const socket = io();
         const board = document.getElementById('board');
-        const statusDiv = document.getElementById('status');
+        const chatMessages = document.getElementById('chat-messages');
+        const chatText = document.getElementById('chat-text');
+        const sendChat = document.getElementById('send-chat');
+        const gameStatus = document.getElementById('game-status');
         const resetConfirmation = document.getElementById('reset-confirmation');
         const winnerMessage = document.getElementById('winner-message');
-        let playerNumber = null;
-        let gameStarted = false;
-        let currentTurn = 1; // Lượt đầu tiên là của Player 1
-        let resetVotes = {};
-        let otherPlayerId = null; // Biến lưu ID của người chơi khác
+        const countdownTimer = document.getElementById('countdown-timer');
 
-        const createBoard = () => {
-            board.innerHTML = ''; // Xóa bàn cờ cũ
-            for (let i = 0; i < 15; i++) {
-                for (let j = 0; j < 15; j++) {
+        document.getElementById('btn-chat').addEventListener('click', () => {
+            document.getElementById('chat-content').classList.remove('d-none');
+            document.getElementById('settings-content').classList.add('d-none');
+            document.getElementById('players-content').classList.add('d-none');
+
+        });
+        document.getElementById('btn-settings').addEventListener('click', () => {
+            document.getElementById('chat-content').classList.add('d-none');
+            document.getElementById('settings-content').classList.remove('d-none');
+            document.getElementById('players-content').classList.add('d-none');
+        });
+        document.getElementById('btn-players').addEventListener('click', () => {
+            document.getElementById('chat-content').classList.add('d-none');
+            document.getElementById('settings-content').classList.add('d-none');
+            document.getElementById('players-content').classList.remove('d-none');
+        });
+        document.addEventListener('DOMContentLoaded', () => {
+            const emojiButton = document.getElementById('emoji-button');
+            const emojiList = document.getElementById('emoji-list');
+            const chatText = document.getElementById('chat-text');
+
+            emojiButton.addEventListener('click', () => {
+                emojiList.classList.toggle('d-none');
+            });
+            document.querySelectorAll('.emoji').forEach(emoji => {
+                emoji.addEventListener('click', (e) => {
+                    chatText.value += e.target.textContent;
+                    emojiList.classList.add('d-none');
+                });
+            });
+            document.addEventListener('click', (e) => {
+                if (!emojiList.contains(e.target) && e.target !== emojiButton) {
+                    emojiList.classList.add('d-none');
+                }
+            });
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const guestId = urlParams.get('guestId') || sessionStorage.getItem('guestId');
+            const userId = urlParams.get('userId') || sessionStorage.getItem('userId');
+            const socketId = urlParams.get('socketId') || sessionStorage.getItem('socketId');
+
+            if (guestId) sessionStorage.setItem('guestId', guestId);
+            if (userId) sessionStorage.setItem('userId', userId);
+            if (socketId) sessionStorage.setItem('socketId', socketId);
+
+            const socket = io('https://gomoku-u3xz.onrender.com', {
+                autoConnect: false,
+                reconnection: true,
+                reconnectionAttempts: 10,
+                reconnectionDelay: 3000,
+                transports: ['websocket'], // Giảm thiểu lỗi transport close
+            });
+
+            // Nếu có socketId cũ, ép socket mới sử dụng nó
+            if (socketId) {
+                socket.auth = { socketId };
+                console.log(`Reconnecting with old socketId: ${socketId}`);
+            }
+
+            socket.connect();
+
+            socket.on('connect', () => {
+                console.log(`Connected with socketId: ${socket.id}`);
+                sessionStorage.setItem('socketId', socket.id);
+            });
+
+            socket.on('disconnect', (reason) => {
+                console.log(`Socket disconnected due to: ${reason}`);
+                if (reason === 'transport close') {
+                    console.log('Attempting to reconnect...');
+                }
+            });
+
+            setupPlayerInfo(guestId, userId); // Thiết lập thông tin người chơi
+            createBoard(guestId, userId); // Tạo bảng chơi
+        });
+
+
+        let playerNumber = null;
+        let currentTurn = 1;
+        let gameStarted = false;
+        let countdown;
+        let swapTurn = false;
+        let players = [];
+        let resetDeclined = false;//Biến theo dõi trạng thái yes-no để ẩn hiện nút kick
+
+        const startCountdown = () => {
+            let time = 10;
+            countdownTimer.textContent = time;
+            countdown = setInterval(() => {
+                time--;
+                countdownTimer.textContent = time;
+                if (time <= 0) {
+                    clearInterval(countdown);
+                    resetConfirmation.style.display = 'none';
+                }
+            }, 1000);
+        };
+
+        const isScrolledToBottom = (element) => {
+            return element.scrollHeight - element.scrollTop === element.clientHeight;
+        };
+
+        const scrollToBottom = (element) => {
+            element.scrollTop = element.scrollHeight;
+        };
+
+        socket.on('chat-message', ({ player, message }) => {
+            const wasScrolledToBottom = isScrolledToBottom(chatMessages);
+            if (wasScrolledToBottom) {
+                scrollToBottom(chatMessages);
+            }
+        });
+
+        document.getElementById('btn-chat').addEventListener('click', () => {
+            scrollToBottom(chatMessages);
+        });
+        socket.on('reset-waiting', ({ playerId }) => {
+            gameStatus.style.display = 'block';
+            gameStatus.textContent = `Đang chờ người chơi khác đồng ý...`;
+        });
+
+        socket.on('player-not-ready', ({ playerId, playerName }) => {
+            const notReadyMessage = document.getElementById('not-ready-message');
+
+            notReadyMessage.textContent = `${playerName} không sẵn sàng!`;
+            notReadyMessage.classList.remove('hidden');
+        });
+
+        document.getElementById('yes-play-again').addEventListener('click', () => {
+            socket.emit('reset-request', { choice: 'yes' });
+            resetDeclined = false;
+            clearInterval(countdown);
+            resetConfirmation.style.display = 'none';
+        });
+
+        document.getElementById('no-play-again').addEventListener('click', () => {
+            socket.emit('reset-request', { choice: 'no' });
+            clearInterval(countdown);
+            resetDeclined = true;
+            resetConfirmation.style.display = 'none';
+        });
+
+        socket.on('win', (winner) => {
+            // const winningPlayer = players.find(player => player.guestId === winner || player.userId === winner);
+            const winningPlayer = players.find(player => player.playerId === winner);
+            const winnerName = winningPlayer ? winningPlayer.name : winner;
+            console.log('Players:', players);
+            console.log('Winner ID:', winner);
+
+            resetConfirmation.style.display = 'block';
+            gameStatus.style.display = 'block';
+            console.log('Winning player:', winningPlayer);
+            winnerMessage.textContent = `Winner: ${winnerName}`;
+            gameStarted = false;
+            startCountdown();
+        });
+
+        socket.on('reset', ({ turn, swapTurn: newSwapTurn }) => {
+            resetConfirmation.style.display = 'none';
+            clearInterval(countdown);
+            swapTurn = newSwapTurn;
+
+            const kickButtons = document.querySelectorAll('.kick-btn');
+            if (!resetDeclined) {
+                kickButtons.forEach(button => {
+                    button.style.display = 'none';
+                });
+            }
+
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach(cell => {
+                cell.textContent = '';
+                cell.classList.remove('taken');
+            });
+
+            gameStarted = true;
+            currentTurn = turn;
+
+            const playerSymbol = swapTurn ? ['O', 'X'] : ['X', 'O'];
+            gameStatus.style.display = 'block';
+            // gameStatus.textContent = `Game restarted! Player ${turn === socket.id ? 'you' : 'opponent'} turn (${playerSymbol[0]})`;
+            // setTimeout(() => (gameStatus.style.display = 'none'), 2000);
+        });
+
+        socket.on('reset-declined', () => {
+            resetDeclined = true;
+            const kickButtons = document.querySelectorAll('.kick-btn');
+            kickButtons.forEach(button => {
+                button.style.display = 'inline-block';
+            });
+        });
+
+        const fetchPlayerData = async (playerId, playerType) => {
+            try {
+                const endpoint = playerType === 'guest' ? `/go/guest/${playerId}` : `/t/${playerId}`;
+                const response = await fetch(endpoint);
+                if (!response.ok) throw new Error('Failed to fetch player data');
+                const data = await response.json();
+                return playerType === 'guest' ? data.guest : data.user;
+            } catch (error) {
+                console.error('Error fetching player data:', error);
+                return null;
+            }
+        };
+
+        const setupPlayerInfo = async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const guestId = urlParams.get('guestId');
+            const userId = urlParams.get('userId');
+            const socketId = urlParams.get('socketId') || sessionStorage.getItem('socketId');
+
+            const playerId = guestId || userId;
+            const playerType = guestId ? 'guest' : 'user';
+            // console.log('Setting up player info:', { guestId, userId, playerId, playerType });
+            try {
+                const player = await fetchPlayerData(playerId, playerType);
+
+                if (!player) {
+                    console.error('No player data found for:', { guestId, userId });
+                    return;
+                }
+
+                // console.log('Player fetched:', player);
+
+                const avatarElement = document.getElementById('player1-avatar');
+                const nameElement = document.getElementById('player1-name');
+
+                if (avatarElement) avatarElement.src = player.avatar || '';
+                if (nameElement) nameElement.textContent = player.guestName || player.username || '';
+
+                socket.emit('player-info', { guestId, userId });
+                socket.emit('join-room', { playerId });
+            } catch (error) {
+                console.error('Error setting up player info:', error);
+            }
+        };
+        const createBoard = (guestId, userId) => {
+            board.innerHTML = '';
+            for (let i = 0; i < 19; i++) {
+                for (let j = 0; j < 19; j++) {
                     const cell = document.createElement('div');
                     cell.classList.add('cell');
                     cell.dataset.row = i;
                     cell.dataset.col = j;
-                    board.appendChild(cell);
-
                     cell.addEventListener('click', () => {
-                        if (!cell.innerText && playerNumber && gameStarted && currentTurn === playerNumber) {
-                            // Gửi thông tin nước đi
-                            socket.emit('move', {
-                                row: i,
-                                col: j,
-                                player: playerNumber
-                            });
+                        if (cell.classList.contains('taken')) {
+                            console.log('Invalid move: Cell already taken.');
+                            return;
                         }
+                        if (!gameStarted) {
+                            console.log('Invalid move: Game not started.');
+                            return;
+                        }
+                        const playerId = guestId || userId;
+                        if (currentTurn !== playerId) {
+                            console.log('Invalid move: Not your turn.');
+                            return;
+                        }
+                        socket.emit('move', { row: i, col: j, playerId });
                     });
+                    board.appendChild(cell);
                 }
             }
         };
 
-        socket.on('player-assigned', (number) => {
-            playerNumber = number;
-            statusDiv.innerText = `You are player ${playerNumber}. Waiting for another player...`;
-        });
+        socket.on('player-info', (updatedPlayers) => {
+            // console.log('Updated players:', updatedPlayers);
 
-        socket.on('game-start', (otherPlayer) => {
-            gameStarted = true;
-            currentTurn = 1;
-            otherPlayerId = otherPlayer;
-            statusDiv.innerText = `Game started! You are player ${playerNumber}.`;
-        });
+            // updatedPlayers.forEach((player, index) => {
+            //     console.log(`Player ${index + 1}:`, player);
+            // });
 
-        socket.on('move', (data) => {
-            const { row, col, player } = data;
-            const cell = board.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
-            cell.innerText = player === 1 ? 'X' : 'O'; // Cập nhật ô với X hoặc O
-            currentTurn = player === 1 ? 2 : 1; // Cập nhật lượt chơi
-            statusDiv.innerText = `Player ${currentTurn === playerNumber ? 'you' : currentTurn}'s turn.`; // Cập nhật thông báo
-        });
+            if (updatedPlayers.length < 2) {
+                console.log('Chưa đủ 2 người chơi!');
+                return;
+            }
+            players = updatedPlayers;
+            const player2 = players[1];
+            const player2Element = document.getElementById('player2');
 
-        socket.on('turn-changed', (newTurn) => {
-            currentTurn = newTurn; // Cập nhật lượt đi mới
-            statusDiv.innerText = `Player ${currentTurn === playerNumber ? 'you' : currentTurn}'s turn.`; // Cập nhật thông báo
-        });
+            if (player2 && player2Element) {
+                player2Element.style.position = 'relative';
+                const avatarElement = player2Element.querySelector('img');
+                const nameElement = player2Element.querySelector('p');
+                if (avatarElement) {
+                    avatarElement.src = player2.avatar || '';
+                } else {
+                    console.error('Avatar Player 2 not found!');
+                }
+                if (nameElement) {
+                    nameElement.textContent = player2.name || 'Player 2';
+                } else {
+                    console.error('Name Player 2 not found!');
+                }
+                document.getElementById('status-text-player2').textContent = 'Chưa sẵn sàng';
 
-        socket.on('win', (player) => {
-            gameStarted = false;
-            winnerMessage.innerText = `Player ${player} wins! Do you want to play again?`;
-            resetConfirmation.style.display = 'block'; // Hiện thông báo chơi lại
-        });
+                const isOwner = players[0].id === socket.id;
+                const existingKickButton = player2Element.querySelector('.kick-btn');
 
-        // Xử lý nút "Yes" để chơi lại
-        document.getElementById('yes-play-again').addEventListener('click', () => {
-            console.log('Yes clicked'); 
-            socket.emit('reset-request'); // Gửi yêu cầu chơi lại
-        });
+                // Xóa btn kick cũ trước khi tạo lại
+                if (existingKickButton) {
+                    existingKickButton.remove();
+                }
 
-        // Lắng nghe sự kiện xác nhận chơi lại từ máy chủ
-        socket.on('reset-confirmation', (playerId) => {
-            resetVotes[playerId] = true; // Đánh dấu người chơi đã đồng ý
-            console.log(`Player ${playerId} agreed to reset.`);
-            resetConfirmation.style.display = 'block'; // Hiện thông báo chơi lại
+                if (isOwner) {
+                    console.log('Creating kick button for Player 2...');
+                    const kickButton = document.createElement('button');
+                    kickButton.classList.add('kick-btn');
+                    kickButton.textContent = '❌';
 
-            // Kiểm tra xem cả hai người chơi đã đồng ý hay chưa
-            if (resetVotes[playerNumber] && resetVotes[otherPlayerId]) {
-                console.log('Both players agreed to reset. Sending reset-accepted.');
-                socket.emit('reset-accepted'); // Gửi yêu cầu chơi lại nếu cả hai đã đồng ý
+                    if (gameStarted) {
+                        console.log('Game already started, hiding kick button.');
+                        kickButton.style.display = 'none';
+                    } else {
+                        kickButton.style.display = 'inline-block';
+                    }
+
+                    kickButton.addEventListener('click', () => {
+                        console.log('Kick button clicked. Sending kick event for Player 2:', player2);
+                        socket.emit('kick-player', { playerId: player2.playerId });
+                    });
+                    player2Element.appendChild(kickButton);
+                }
+            }
+            const player1 = players[0];
+            if (player1) {
+                document.getElementById('player1-avatar').src = player1.avatar || '';
+                document.getElementById('player1-name').textContent = player1.name || 'Player 1';
+                document.getElementById('status-text-player1').textContent = 'Chưa sẵn sàng';
             }
         });
 
-        // Xử lý nút "No" để không chơi lại
-        document.getElementById('no-play-again').addEventListener('click', () => {
-            console.log('No clicked'); 
-            resetConfirmation.style.display = 'none'; // Ẩn thông báo
-            resetVotes = {};
+        socket.on('kicked', (data) => {
+            console.log('Đã nhận được thông báo kick:', data);
+
+            const message = data.message;
+            const notificationElement = document.getElementById('kick-notification');
+            const messageElement = document.getElementById('kick-message');
+            messageElement.textContent = message;
+            notificationElement.style.display = 'block';
+            setTimeout(() => {
+                notificationElement.style.display = 'none';
+                window.location.href = 'https://gomoku-u3xz.onrender.com/rooms';
+            }, 1500);
+
         });
 
-        // Reset lại trạng thái khi trò chơi được khởi động lại
-        socket.on('reset', () => {
-            resetVotes = {}; 
-            createBoard(); // Tạo bàn cờ mới
+        // document.getElementById('close-notification').addEventListener('click', () => {
+        //     document.getElementById('kick-notification').style.display = 'none';
+        // });
+
+        // FIX: Update player-kicked event handler to use playerId instead of guestId/userId
+        socket.on('player-kicked', ({ playerId }) => {
+            console.log('Player kicked event received:', playerId);
+
+            // Filter players array
+            players = players.filter(player => player.playerId !== playerId);
+
+            const player2Element = document.getElementById('player2');
+
+            // Clear player 2 UI elements
+            if (player2Element) {
+                player2Element.querySelector('img').src = '';
+                player2Element.querySelector('p').textContent = '';
+                document.getElementById('status-text-player2').textContent = 'Chưa có người chơi';
+            }
+
+            // Update ready button state
+            document.getElementById('ready-btn').disabled = false;
+            document.getElementById('status-text-player1').textContent = 'Chưa sẵn sàng';
+
+            // Remove kick button if it exists
+            const kickButton = player2Element.querySelector('.kick-btn');
+            if (kickButton) kickButton.remove();
+
+            // Update players list in the sidebar
+            const playersList = document.getElementById('players-list');
+            if (playersList) {
+                playersList.innerHTML = '<p>List user:</p>';
+                players.forEach((player, index) => {
+                    const listItem = document.createElement('li');
+                    listItem.classList.add('list-group-item', 'd-flex', 'justify-content-between', 'align-items-center');
+                    listItem.textContent = `${player.name || `Player ${index + 1}`} (${player.playerId})`;
+                    playersList.appendChild(listItem);
+                });
+            }
+        });
+
+        socket.on('reset-ready-status', () => {
+            console.log('Reset Ready Status triggered');
+        });
+
+        socket.on('update-ready-status', ({ playerId, isReady }) => {
+            if (!players || players.length < 2) return;
+
+            if (players[0].playerId === playerId) {
+                document.getElementById('status-text-player1').textContent = isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng';
+            } else if (players[1].playerId === playerId) {
+                document.getElementById('status-text-player2').textContent = isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng';
+            }
+
+            console.log(`Player ${playerId} ready status updated to: ${isReady}`);
+        });
+
+        const readyButton = document.getElementById('ready-btn');
+        readyButton.addEventListener('click', () => {
+            console.log('Button Sẵn sàng đã được click');
+            const playerId = sessionStorage.getItem('guestId') || sessionStorage.getItem('userId');
+            if (!playerId) {
+                alert('Bạn chưa đăng nhập hoặc tham gia với tư cách khách!');
+                return;
+            }
+
+            console.log('Emitting player-ready with:', { playerId });
+            socket.emit('player-ready', { playerId });
+            readyButton.disabled = true;
+        });
+
+        const statusTextPlayer1 = document.getElementById('status-text-player1');
+        const statusTextPlayer2 = document.getElementById('status-text-player2');
+
+        // readyButton.addEventListener('click', () => {
+        //     const urlParams = new URLSearchParams(window.location.search);
+        //     const guestId = urlParams.get('guestId');
+
+        //     if (guestId) {
+        //         socket.emit('player-ready', { guestId });
+        //         readyButton.disabled = true;
+        //     }
+        // });
+
+        socket.on('reset-ready-status', () => {
+            document.getElementById('status-text-player1').textContent = 'Chưa sẵn sàng';
+            document.getElementById('status-text-player2').textContent = 'Chưa sẵn sàng';
+            document.getElementById('ready-btn').disabled = false;
+        });
+
+        socket.on('player-ready', ({ guestId, userId, players }) => {
+            console.log('Received player-ready event:', { guestId, userId, players });
+
+            const playerId = guestId || userId;
+
+            players.forEach(player => {
+                if (player.guestId === playerId || player.userId === playerId) {
+                    console.log(`${player.name} is ready`);
+                }
+            });
+
+            const allReady = players.every(player => player.isReady);
+            if (allReady) {
+                gameStarted = true;
+
+                if (typeof room !== 'undefined') {
+                    io.to(room).emit('game-start', { turn: rooms[room].turn });
+                    console.log('All players are ready. Game starting...');
+                } else {
+                    console.error('Room is not defined.');
+                }
+            }
+        });
+
+        socket.on('game-start', ({ turn }) => {
+            const notReadyMessage = document.getElementById('not-ready-message');
+            if (notReadyMessage) {
+                notReadyMessage.textContent = '';
+                notReadyMessage.classList.add('hidden');
+            }
             gameStarted = true;
-            currentTurn = 1; // Reset lại lượt đầu tiên là Player 1
-            statusDiv.innerText = `Game restarted. You are player ${playerNumber}.`;
-            resetConfirmation.style.display = 'none'; // Ẩn thông báo
+            currentTurn = turn;
+            document.getElementById('ready-btn').disabled = true;
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach(cell => {
+                cell.textContent = '';
+                cell.classList.remove('taken');
+            });
+
+            const startingPlayer = players.find(player => player.playerId === turn);
+            console.log(`${startingPlayer.name} starts the game.`);
+
+            // console.log(`Game started. Turn: ${turn}`);
+            const kickButtons = document.querySelectorAll('.kick-btn');
+            kickButtons.forEach(button => {
+                button.style.display = 'none';
+            });
+            gameStatus.style.display = 'block';
+            // setTimeout(() => (gameStatus.style.display = 'none'), 2000);
+        });
+
+        socket.on('turn-changed', (newTurn) => {
+            currentTurn = newTurn;
+            // console.log(`Turn changed to: ${newTurn}`);
+        });
+
+        socket.on('move', ({ row, col, guestId, symbol }) => {
+            const cell = board.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+            if (cell && !cell.classList.contains('taken')) {
+                const playerSymbol = symbol === 1 ? (swapTurn ? "O" : "X") : (swapTurn ? "X" : "O");
+                cell.textContent = playerSymbol;
+                cell.classList.add('taken');
+            }
+        });
+
+        sendChat.addEventListener('click', sendMessage);
+
+        chatText.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        function sendMessage() {
+            const message = chatText.value.trim();
+            const playerId = sessionStorage.getItem('guestId') || sessionStorage.getItem('userId');
+            const room = sessionStorage.getItem('room');
+
+            if (message && playerId) {
+                socket.emit('chat-message', { playerId, message, room });
+                chatText.value = '';
+            }
+        }
+
+        socket.on('chat-message', ({ player, message }) => {
+            chatMessages.innerHTML += `<p><strong>${player}:</strong> ${message}</p>`;
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
+
+        // update ui aftar pl disconnect
+        socket.on('player-disconnected', ({ message, players }) => {
+            console.log(message);
+
+            const notification = document.getElementById('game-status');
+            notification.style.display = 'block';
+            notification.textContent = message;
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 3000);
+
+            const player1Element = document.getElementById('player1');
+            const player2Element = document.getElementById('player2');
+
+            if (players.length === 1) {
+                const player1 = players[0];
+                player1Element.querySelector('#player1-name').textContent = player1.name || 'Player 1';
+                player2Element.querySelector('#player2-name').textContent = '';
+                player2Element.querySelector('img').src = '';
+                document.getElementById('status-text-player2').textContent = 'Chưa có người chơi';
+            }
+        });
+
+        socket.on('update-kick-button', ({ showKick }) => {
+            const kickButtons = document.querySelectorAll('.kick-btn');
+            kickButtons.forEach(button => {
+                button.style.display = showKick ? 'inline-block' : 'none';
+            });
         });
 
         createBoard();
+        setupPlayerInfo();
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 
 </html>
