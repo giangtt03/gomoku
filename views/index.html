@@ -486,7 +486,7 @@
             if (userId) sessionStorage.setItem('userId', userId);
             if (socketId) sessionStorage.setItem('socketId', socketId);
 
-            const socket = io('http://localhost:8002', {
+            const socket = io('https://gomoku-u3xz.onrender.com', {
                 autoConnect: false,
                 reconnection: true,
                 reconnectionAttempts: 10,
@@ -784,7 +784,7 @@
             notificationElement.style.display = 'block';
             setTimeout(() => {
                 notificationElement.style.display = 'none';
-                window.location.href = 'http://localhost:8002/rooms';
+                window.location.href = 'https://gomoku-u3xz.onrender.com/rooms';
             }, 1500);
 
         });
