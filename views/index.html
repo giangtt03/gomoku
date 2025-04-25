@@ -792,31 +792,31 @@
         // document.getElementById('close-notification').addEventListener('click', () => {
         //     document.getElementById('kick-notification').style.display = 'none';
         // });
-        
+
         // FIX: Update player-kicked event handler to use playerId instead of guestId/userId
         socket.on('player-kicked', ({ playerId }) => {
             console.log('Player kicked event received:', playerId);
-            
+
             // Filter players array
             players = players.filter(player => player.playerId !== playerId);
-            
+
             const player2Element = document.getElementById('player2');
-            
+
             // Clear player 2 UI elements
             if (player2Element) {
                 player2Element.querySelector('img').src = '';
                 player2Element.querySelector('p').textContent = '';
                 document.getElementById('status-text-player2').textContent = 'Chưa có người chơi';
             }
-            
+
             // Update ready button state
             document.getElementById('ready-btn').disabled = false;
             document.getElementById('status-text-player1').textContent = 'Chưa sẵn sàng';
-            
+
             // Remove kick button if it exists
             const kickButton = player2Element.querySelector('.kick-btn');
             if (kickButton) kickButton.remove();
-            
+
             // Update players list in the sidebar
             const playersList = document.getElementById('players-list');
             if (playersList) {
@@ -835,13 +835,14 @@
         });
 
         socket.on('update-ready-status', ({ playerId, isReady }) => {
-            const playerElement = document.querySelector(`[data-player-id="${playerId}"]`);
-            if (playerElement) {
-                const statusElement = playerElement.querySelector('.player-status');
-                statusElement.textContent = isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng';
-                statusElement.classList.toggle('text-success', isReady);
-                statusElement.classList.toggle('text-danger', !isReady);
+            if (!players || players.length < 2) return;
+
+            if (players[0].playerId === playerId) {
+                document.getElementById('status-text-player1').textContent = isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng';
+            } else if (players[1].playerId === playerId) {
+                document.getElementById('status-text-player2').textContent = isReady ? 'Sẵn sàng' : 'Chưa sẵn sàng';
             }
+
             console.log(`Player ${playerId} ready status updated to: ${isReady}`);
         });
 

@@ -2,168 +2,154 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Danh sách phòng - Gomoku</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="/socket.io/socket.io.js"></script>
-    <style>
-        body {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            background: linear-gradient(135deg, #322f2f, #3e416f);
-            color: white;
-            font-family: Arial, sans-serif;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Danh sách phòng - Gomoku</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: linear-gradient(135deg, #322f2f, #3e416f);
+      color: white;
+      font-family: Arial, sans-serif;
+    }
 
-        .container {
-            max-width: 800px;
-        }
+    .container {
+      max-width: 800px;
+    }
 
-        .btn-primary {
-            margin-top: 10px;
-        }
-    </style>
+    .btn-primary {
+      margin-top: 10px;
+    }
+
+    table {
+      width: 100%;
+    }
+  </style>
 </head>
 
 <body>
-    <div class="container text-center">
-        <h1 class="fw-bold">Danh sách phòng</h1>
-        <div id="room-list" class="mt-4">
-            <p>Đang tải danh sách phòng...</p>
-        </div>
-        <button id="create-room" class="btn btn btn-secondary mt-3">Tham gia ngay</button>
+  <div class="container text-center">
+    <h1 class="fw-bold">Danh sách phòng</h1>
+    <div id="room-list" class="mt-4">
+      <p>Đang tải danh sách phòng...</p>
     </div>
-    <script>
-        const socket = io('http://localhost:8002', {
-            autoConnect: false,
-            reconnection: true
-        });
+    <button id="create-room" class="btn btn-secondary mt-3">Tham gia ngay</button>
+  </div>
 
-        // Kiểm tra và khôi phục socket ID trước đó
-        const savedSocketId = sessionStorage.getItem('socketId');
-        if (savedSocketId) {
-            socket.auth = { savedSocketId };
-        }
+  <script>
+    const socket = io('http://localhost:8002', {
+      autoConnect: false,
+      reconnection: true
+    });
 
-        socket.connect(); // Kết nối thủ công
+    const savedSocketId = sessionStorage.getItem('socketId');
+    if (savedSocketId) {
+      socket.auth = { savedSocketId };
+    }
 
-        socket.on('connect', () => {
-            // console.log(`Connected with socketId: ${socket.id}`);
-            sessionStorage.setItem('socketId', socket.id);
-        });
+    socket.connect();
 
-        const roomListContainer = document.getElementById('room-list');
-        const createRoomButton = document.getElementById('create-room');
+    socket.on('connect', () => {
+      sessionStorage.setItem('socketId', socket.id);
+    });
 
-        // Fetch room list
-        socket.emit('list-rooms');
-        socket.on('room-list', (rooms) => {
-            // console.log("Received room list:", rooms); 
-            
-            roomListContainer.innerHTML = '';
-            if (rooms.length === 0) {
-                roomListContainer.innerHTML = '<p>Hiện tại không có phòng nào.</p>';
-            } else {
-                const roomTable = document.createElement('table');
-                roomTable.className = 'table table-dark table-striped';
-                roomTable.innerHTML = `
-                    <thead>
-                        <tr>
-                            <th>ID Phòng</th>
-                            <th>Số người chơi</th>
-                            <th>Tham gia</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${rooms.map(room => {
-                            // console.log(`Room ${room.roomId}:`, room);
-                            
-                            return `
-                            <tr>
-                                <td>${room.roomId}</td>
-                                <td>${room.players}/${room.maxPlayers}</td>
-                                <td>
-                                    <button class="btn btn btn-secondary mt-3" data-room="${room.roomId}" ${room.players >= room.maxPlayers ? 'disabled' : ''}>Tham gia</button>
-                                </td>
-                            </tr>
-                        `}).join('')}
-                    </tbody>
-                `;
-                roomListContainer.appendChild(roomTable);
+    const roomListContainer = document.getElementById('room-list');
+    const createRoomButton = document.getElementById('create-room');
 
+    socket.emit('list-rooms');
+    socket.on('room-list', (rooms) => {
+      roomListContainer.innerHTML = '';
+      if (rooms.length === 0) {
+        roomListContainer.innerHTML = '<p>Hiện tại không có phòng nào.</p>';
+      } else {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'table-responsive';
 
+        const roomTable = document.createElement('table');
+        roomTable.className = 'table table-dark table-striped table-bordered align-middle text-center w-100';
+        roomTable.innerHTML = `
+          <thead>
+            <tr>
+              <th>ID Phòng</th>
+              <th>Số người chơi</th>
+              <th>Tham gia</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rooms.map(room => `
+              <tr>
+                <td>${room.roomId}</td>
+                <td>${room.players}/${room.maxPlayers}</td>
+                <td>
+                  <button class="btn btn-secondary join-room" data-room="${room.roomId}" ${room.players >= room.maxPlayers ? 'disabled' : ''}>
+                    Tham gia
+                  </button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        `;
+        wrapper.appendChild(roomTable);
+        roomListContainer.appendChild(wrapper);
 
-                // Add event listener to join buttons
-                document.querySelectorAll('.join-room').forEach(button => {
-                    button.addEventListener('click', () => {
-                        const roomId = button.getAttribute('data-room');
-                        const userId = sessionStorage.getItem('userId');
-                        const guestId = sessionStorage.getItem('guestId');
-                        // console.log(`Joining room: ${roomId}`);
-                        const redirectUrl = `/go/play?roomId=${roomId}${userId ? `&userId=${userId}` : `&guestId=${guestId}`}`;
-                        // console.log(`Redirecting to: ${redirectUrl}`);
-                        window.location.href = redirectUrl;
-                    });
-                });
-            }
-        });
-
-        createRoomButton.addEventListener('click', () => {
-            createRoomButton.disabled = true;
-            createRoomButton.textContent = 'Đang tạo phòng...';
-            
+        document.querySelectorAll('.join-room').forEach(button => {
+          button.addEventListener('click', () => {
+            const roomId = button.getAttribute('data-room');
             const userId = sessionStorage.getItem('userId');
             const guestId = sessionStorage.getItem('guestId');
-
-            // console.log('CREATING NEW ROOM with userId:', userId, 'guestId:', guestId);
-            
-            sessionStorage.removeItem('roomCreationInProgress');
-            
-            sessionStorage.setItem('roomCreationInProgress', Date.now().toString());
-            
-            socket.emit('create-room', { userId, guestId });
-            
-            setTimeout(() => {
-                if (createRoomButton.disabled) {
-                    createRoomButton.disabled = false;
-                    createRoomButton.textContent = 'Tham gia ngay';
-                    // console.log('Room creation timed out');
-                    sessionStorage.removeItem('roomCreationInProgress');
-                }
-            }, 5000);
-        });
-
-        socket.on('room-created', ({ roomId }) => {
-            // console.log(`ROOM CREATED EVENT RECEIVED: ${roomId}`);
-            
-            sessionStorage.removeItem('roomCreationInProgress');
-            
-            createRoomButton.disabled = false;
-            createRoomButton.textContent = 'Tham gia ngay';
-            
-            const userId = sessionStorage.getItem('userId');
-            const guestId = sessionStorage.getItem('guestId');
-            
             const redirectUrl = `/go/play?roomId=${roomId}${userId ? `&userId=${userId}` : `&guestId=${guestId}`}`;
-            
-            // console.log(`Redirecting to new room: ${redirectUrl}`);
-            
             window.location.href = redirectUrl;
+          });
         });
+      }
+    });
 
-        socket.on('disconnect', () => {
-            // console.log('Socket disconnected. Cleaning up...');
-            sessionStorage.removeItem('roomCreationInProgress');
-            
-            createRoomButton.disabled = false;
-            createRoomButton.textContent = 'Tham gia ngay';
-        });
-    </script>
+    createRoomButton.addEventListener('click', () => {
+      createRoomButton.disabled = true;
+      createRoomButton.textContent = 'Đang tạo phòng...';
+
+      const userId = sessionStorage.getItem('userId');
+      const guestId = sessionStorage.getItem('guestId');
+
+      sessionStorage.removeItem('roomCreationInProgress');
+      sessionStorage.setItem('roomCreationInProgress', Date.now().toString());
+
+      socket.emit('create-room', { userId, guestId });
+
+      setTimeout(() => {
+        if (createRoomButton.disabled) {
+          createRoomButton.disabled = false;
+          createRoomButton.textContent = 'Tham gia ngay';
+          sessionStorage.removeItem('roomCreationInProgress');
+        }
+      }, 5000);
+    });
+
+    socket.on('room-created', ({ roomId }) => {
+      sessionStorage.removeItem('roomCreationInProgress');
+      createRoomButton.disabled = false;
+      createRoomButton.textContent = 'Tham gia ngay';
+
+      const userId = sessionStorage.getItem('userId');
+      const guestId = sessionStorage.getItem('guestId');
+
+      const redirectUrl = `/go/play?roomId=${roomId}${userId ? `&userId=${userId}` : `&guestId=${guestId}`}`;
+      window.location.href = redirectUrl;
+    });
+
+    socket.on('disconnect', () => {
+      sessionStorage.removeItem('roomCreationInProgress');
+      createRoomButton.disabled = false;
+      createRoomButton.textContent = 'Tham gia ngay';
+    });
+  </script>
 
 </body>
 
